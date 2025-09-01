@@ -4,6 +4,7 @@
 logs/
 tmp/
 .cache/
+master/
 .env
 .env.*
 *.key
