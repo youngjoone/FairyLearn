@@ -4,33 +4,45 @@
 logs/
 tmp/
 .cache/
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.jks
+*.sqlite3
+*.db
+*.sqlite
+config.json
+settings.json
+credentials.json
 
 # === Node / Frontend ===
-frontend/node_modules/
-frontend/.next/
-frontend/.nuxt/
-frontend/.turbo/
-frontend/.vite/
-frontend/dist/
-frontend/out/
-frontend/coverage/
-frontend/.eslintcache
+node_modules/
+.next/
+.nuxt/
+.turbo/
+.vite/
+dist/
+out/
+coverage/
+.eslintcache
 
 # === Java / Gradle ===
-backend/build/
-backend/out/
-backend/target/
-backend/.gradle/
+build/
+out/
+target/
+.gradle/
 *.iml
 .idea/
 
 # === Python ===
-ai-python/.venv/
-ai-python/venv/
-ai-python/__pycache__/
-ai-python/.pytest_cache/
-ai-python/.mypy_cache/
-ai-python/.ruff_cache/
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # === OS / Editor ===
 .vscode/
