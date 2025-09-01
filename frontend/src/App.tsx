@@ -1,15 +1,15 @@
 import { Routes, Route } from 'react-router-dom';
 import Home from '@/pages/Home';
-import Test from '@/pages/Test';
-import Result from '@/pages/Result';
+
+
 import AuthCallback from '@/pages/AuthCallback';
 
 import MyResults from '@/pages/MyResults';
-import ResultDetail from '@/pages/ResultDetail';
-import Share from '@/pages/Share';
+
+
 import AdminAnalytics from '@/pages/AdminAnalytics';
 import MyEntitlements from '@/pages/MyEntitlements';
-import AdminTests from '@/pages/AdminTests';
+
 import Signup from '@/pages/Signup';
 import Login from '@/pages/Login';
 import Header from '@/components/Header';
@@ -27,15 +27,15 @@ function App() {
             <Routes>
               <Route path="/" element={<Home />} />
               
-              <Route path="/test/:testCode" element={<Test />} />
-              <Route path="/result" element={<Result />} />
+              
+              
               <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/my/results" element={<MyResults />} />
-              <Route path="/my/results/:id" element={<ResultDetail />} />
-              <Route path="/share/:id" element={<Share />} />
+              
+              
               <Route path="/admin/analytics" element={<AdminAnalytics />} />
               <Route path="/me/entitlements" element={<MyEntitlements />} />
-              <Route path="/admin/tests" element={<AdminTests />} /> {/* Add AdminTests route */}
+              
               <Route path="/signup" element={<Signup />} />
               <Route path="/login" element={<Login />} />
             </Routes>
