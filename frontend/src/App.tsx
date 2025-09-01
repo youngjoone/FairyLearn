@@ -1,5 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import Home from '@/pages/Home';
+import StoriesList from '@/pages/StoriesList';
+import StoryDetail from '@/pages/StoryDetail';
 
 
 import AuthCallback from '@/pages/AuthCallback';
@@ -26,6 +28,8 @@ function App() {
           <main className="container mx-auto p-4 flex-grow">
             <Routes>
               <Route path="/" element={<Home />} />
+              <Route path="/stories" element={<StoriesList />} />
+              <Route path="/stories/:id" element={<StoryDetail />} />
               
               
               
