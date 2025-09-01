@@ -1,0 +1,15 @@
+**/node_modules
+**/build
+**/dist
+**/.gradle
+**/.venv
+**/venv
+**/.cache
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.next
+**/.nuxt
+**/.vite
+**/coverage
+**/.eslintcache

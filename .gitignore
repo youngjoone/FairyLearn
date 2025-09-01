@@ -1,45 +1,42 @@
-# Created by Gemini
-
-# OS/IDE
+# === General ===
 .DS_Store
-.idea/
-*.iml
-
-# Node
-node_modules/
-dist/
-build/
-.vite/
-coverage/
-*.map
-
-# Java/Spring
-.gradle/
-build/
-*.h2.db
 *.log
+logs/
+tmp/
+.cache/
 
-# Python
-venv/
-.venv/
-__pycache__/
-*.pyc
-.pytest_cache/
-.mypy_cache/
+# === Node / Frontend ===
+frontend/node_modules/
+frontend/.next/
+frontend/.nuxt/
+frontend/.turbo/
+frontend/.vite/
+frontend/dist/
+frontend/out/
+frontend/coverage/
+frontend/.eslintcache
 
-# Env
-.env
-.env.*
+# === Java / Gradle ===
+backend/build/
+backend/out/
+backend/target/
+backend/.gradle/
+*.iml
+.idea/
 
-# Other existing rules (keep them)
-.AppleDouble
-.LSOverride
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-.history/
+# === Python ===
+ai-python/.venv/
+ai-python/venv/
+ai-python/__pycache__/
+ai-python/.pytest_cache/
+ai-python/.mypy_cache/
+ai-python/.ruff_cache/
+
+# === OS / Editor ===
+.vscode/
+*.swp
+*.swo
+
+# === Git ===
+.git/
+!.github/
