@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import Home from '@/pages/Home';
 import StoriesList from '@/pages/StoriesList';
 import StoryDetail from '@/pages/StoryDetail';
+import NewStory from '@/pages/NewStory.tsx';
 
 
 import AuthCallback from '@/pages/AuthCallback';
@@ -30,6 +31,7 @@ function App() {
               <Route path="/" element={<Home />} />
               <Route path="/stories" element={<StoriesList />} />
               <Route path="/stories/:id" element={<StoryDetail />} />
+              <Route path="/stories/new" element={<NewStory />} />
               
               
               
