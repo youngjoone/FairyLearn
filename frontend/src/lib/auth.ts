@@ -1,5 +1,5 @@
-export const ACCESS_KEY = 'findme_access';
-export const REFRESH_KEY = 'findme_refresh';
+export const ACCESS_KEY = 'fairylearn_access';
+export const REFRESH_KEY = 'fairylearn_refresh';
 
 export function setTokens(access?: string, refresh?: string) {
   if (access) localStorage.setItem(ACCESS_KEY, access);

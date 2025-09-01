@@ -22,6 +22,7 @@ interface PaginatedResponse<T> {
 const MyResults: React.FC = () => {
     const navigate = useNavigate(); // Initialize useNavigate
     const { fetchWithErrorHandler } = useApi(); // Use useApi hook
+    const { addToast } = useToast(); // Destructure addToast
 
     const [results, setResults] = useState<ResultListItem[]>([]);
     const [nextPage, setNextPage] = useState<number>(0);
@@ -38,6 +39,7 @@ const MyResults: React.FC = () => {
         setLocalJwtToken(token);
         if (!token) { // Check if token exists
             console.log('No token found, redirecting to home.');
+            addToast('로그인이 필요한 서비스입니다.', 'error'); // Display toast message
             navigate('/'); // Redirect to home if not logged in
         } else {
             console.log('Token found:', token.substring(0, 10) + '...');

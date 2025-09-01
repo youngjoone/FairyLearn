@@ -28,7 +28,7 @@ const Meta: React.FC<MetaProps> = ({
   twitterDescription,
   twitterImage,
 }) => {
-  const defaultTitle = 'find-me — 성향 테스트와 감정 기반 창작';
+  const defaultTitle = 'FairyLearn — 성향 테스트와 감정 기반 창작';
   const defaultDescription = '당신의 성향을 분석하고 감정에 기반한 시와 이미지를 생성해주는 서비스입니다. 자신을 더 깊이 이해하고 창의적인 영감을 얻어보세요.';
   const defaultOgImage = `${window.location.origin}/og/base.png`; // Default OG image
 

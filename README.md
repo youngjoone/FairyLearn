@@ -1,4 +1,4 @@
-# find-me
+# FairyLearn
 
 성향 테스트(MBTI 스타일, 테토남/테토녀, 기질/가치관/흥미) + 감정 태깅을 바탕으로 **개인화 글/시/이미지 프롬프트**를 생성·추천하는 서비스.
 
@@ -146,7 +146,7 @@ uvicorn main:app --reload
 환경 변수 예시 `.env` (발췌)
 
 ```
-SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/findme
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/fairylearn
 SPRING_DATASOURCE_USERNAME=postgres
 SPRING_DATASOURCE_PASSWORD=secret
 SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID=...

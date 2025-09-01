@@ -1,4 +1,4 @@
-# TODO — find-me (Docker 미사용 로컬 개발)
+# TODO — FairyLearn (Docker 미사용 로컬 개발)
 
 ## 0) 리포지토리 초기화
 
@@ -41,7 +41,7 @@
 
 ## 4) 데이터베이스/캐시(로컬 설치)
 
-* [ ] PostgreSQL 15+ 설치 및 DB 생성 `findme`
+* [ ] PostgreSQL 15+ 설치 및 DB 생성 `fairylearn`
 * [ ] Redis 7+ 설치
 * [ ] Spring `application-local.yml` 연결 확인
 * [ ] 초기 스키마 마이그레이션(Flyway) 적용

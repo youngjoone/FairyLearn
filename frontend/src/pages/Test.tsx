@@ -140,7 +140,7 @@ const Test: React.FC = () => {
     
     return (
         <>
-            <Meta title="테스트 시작 — find-me" />
+            <Meta title="테스트 시작 — FairyLearn" />
             <div>
                 <h1>{testData?.title || '테스트'}</h1>
                 {formError && <p style={{ color: 'red' }}>오류: {formError}</p>}

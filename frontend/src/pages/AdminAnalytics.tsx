@@ -88,7 +88,7 @@ const AdminAnalytics: React.FC = () => {
 
     return (
         <>
-            <Meta title="관리자 분석 — find-me" description="find-me 서비스의 익명 이벤트 분석 요약 화면입니다." />
+            <Meta title="관리자 분석 — FairyLearn" description="FairyLearn 서비스의 익명 이벤트 분석 요약 화면입니다." />
             <div className="p-4">
                 <h1 className="text-2xl font-bold mb-4">분석 요약</h1>
                 <Card className="mb-6">

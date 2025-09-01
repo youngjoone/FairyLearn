@@ -82,7 +82,7 @@ const MyEntitlements: React.FC = () => {
 
     return (
         <>
-            <Meta title="내 권한 — find-me" description="find-me 서비스에서 보유하고 있는 권한 목록입니다." />
+            <Meta title="내 권한 — FairyLearn" description="FairyLearn 서비스에서 보유하고 있는 권한 목록입니다." />
             <div className="p-4">
                 <h1 className="text-2xl font-bold mb-4">내 권한</h1>
                 <div className="flex flex-col gap-4">

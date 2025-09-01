@@ -17,7 +17,7 @@ const Header: React.FC = () => {
   return (
     <header className="flex items-center justify-between p-4 border-b border-border bg-background text-foreground">
       <Link to="/" className="text-2xl font-bold">
-        find-me
+        FairyLearn
       </Link>
       <nav className="flex items-center space-x-4">
         

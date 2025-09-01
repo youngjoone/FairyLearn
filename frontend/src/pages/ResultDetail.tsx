@@ -98,7 +98,7 @@ const ResultDetail: React.FC = () => {
         setError("성향 데이터를 파싱하는데 실패했습니다.");
     }
 
-    const pageTitle = `find-me 결과 #${result.id}`;
+    const pageTitle = `FairyLearn 결과 #${result.id}`;
     const pageDescription = `점수 ${result.score.toFixed(2)} | 주요 성향 A:${parsedTraits.A?.toFixed(2) || 'N/A'} B:${parsedTraits.B?.toFixed(2) || 'N/A'} C:${parsedTraits.C?.toFixed(2) || 'N/A'}`;
 
     return (

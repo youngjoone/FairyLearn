@@ -212,7 +212,7 @@ const AdminTests: React.FC = () => {
 
     return (
         <>
-            <Meta title="테스트 관리 — find-me" description="find-me 서비스의 테스트 정의를 관리하는 화면입니다." />
+            <Meta title="테스트 관리 — FairyLearn" description="FairyLearn 서비스의 테스트 정의를 관리하는 화면입니다." />
             <div className="p-4">
                 <h1 className="text-2xl font-bold mb-4">테스트 관리 (CMS)</h1>
 
