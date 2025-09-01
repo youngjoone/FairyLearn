@@ -21,7 +21,7 @@ const Header: React.FC = () => {
       </Link>
       <nav className="flex items-center space-x-4">
         
-        <Link to="/my/results" className="hover:text-primary">내 결과</Link>
+        
         <Link to="/me/entitlements" className="hover:text-primary">내 권한</Link> {/* Added link to entitlements */}
         {isLoggedIn ? (
           <Button variant="ghost" size="sm" onClick={handleLogout}>

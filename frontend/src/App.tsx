@@ -4,7 +4,7 @@ import Home from '@/pages/Home';
 
 import AuthCallback from '@/pages/AuthCallback';
 
-import MyResults from '@/pages/MyResults';
+
 
 
 import AdminAnalytics from '@/pages/AdminAnalytics';
@@ -30,7 +30,7 @@ function App() {
               
               
               <Route path="/auth/callback" element={<AuthCallback />} />
-              <Route path="/my/results" element={<MyResults />} />
+              
               
               
               <Route path="/admin/analytics" element={<AdminAnalytics />} />
