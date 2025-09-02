@@ -19,6 +19,7 @@ interface StoryDetailData {
     status: string;
     createdAt: string;
     pages: { pageNo: number; text: string }[];
+    quiz?: { q: string; a: string }[]; // Add optional quiz field
 }
 
 const StoryDetail: React.FC = () => {
@@ -134,6 +135,21 @@ const StoryDetail: React.FC = () => {
                             </p>
                         ))}
                     </CardContent>
+
+                    {story.quiz && story.quiz.length > 0 && (
+                        <div className="p-4 border-t border-border">
+                            <h2 className="text-xl font-semibold mb-2">퀴즈</h2>
+                            <div className="space-y-2">
+                                {story.quiz.map((item, index) => (
+                                    <div key={index} className="p-2 bg-gray-100 rounded-md">
+                                        <p className="font-medium">Q{index + 1}: {item.q}</p>
+                                        <p className="text-sm text-muted-foreground">A: {item.a}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     <CardFooter className="flex justify-end space-x-2">
                         <Button onClick={() => navigate('/stories')} variant="outline">목록으로</Button>
                         <Button onClick={handleDelete} variant="destructive">삭제</Button>
