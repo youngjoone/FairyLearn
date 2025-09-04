@@ -1,28 +1,8 @@
-import { useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react'; // Import useRef
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 import { useToast } from '../components/ui/ToastProvider';
-import { getAccess, getRefresh, setTokens, clearTokens } from '../lib/auth'; // Import auth utilities
-
-interface CommonErrorResponse {
-    code: string;
-    message: string;
-    requestId: string;
-    timestamp: string;
-}
-
-// Custom error for 402 Payment Required
-export class PaymentRequiredError extends Error {
-    code: string;
-    requestId: string;
-    timestamp: string;
-
-    constructor(message: string, code: string = "PAYMENT_REQUIRED", requestId: string = "N/A", timestamp: string = new Date().toISOString()) {
-        super(message);
-        this.name = "PaymentRequiredError";
-        this.code = code;
-        this.requestId = requestId;
-        this.timestamp = timestamp;
-    }
-}
+import { getAccess, getRefresh, setTokens, clearTokens } from '../lib/auth';
 
 // Flag to prevent multiple refresh token requests
 let isRefreshing = false;
@@ -33,138 +13,132 @@ const processQueue = (error: any | null) => {
         if (error) {
             prom.reject(error);
         } else {
-            prom.resolve(true); // Resolve with true to indicate successful refresh
+            prom.resolve(true);
         }
     });
     failedQueue = [];
 };
 
 function useApi() {
+    const navigate = useNavigate();
     const { addToast } = useToast();
 
-    const fetchWithErrorHandler = useCallback(async <T>(
-        url: string,
-        options?: RequestInit
-    ): Promise<T> => {
-        try {
-            const token = getAccess();
-            const headers: Record<string, string> = {
-                ...(options?.headers as Record<string, string>),
-            };
+    // Use useRef to store the axios instance so it's not recreated on every render
+    const axiosInstance = useRef(axios.create({
+        baseURL: 'http://localhost:8080/api',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    }));
 
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-                console.log(`[API] Sending token for ${url}: ${token.substring(0, 10)}...`);
-            }
+    useEffect(() => {
+        const instance = axiosInstance.current; // Get the current instance
 
-            let response = await fetch(url, {
-                ...options,
-                headers,
-            });
+        // Request Interceptor: Add JWT token to headers
+        const requestInterceptor = instance.interceptors.request.use(
+            config => {
+                const token = getAccess();
+                if (token) {
+                    config.headers.Authorization = `Bearer ${token}`;
+                }
+                return config;
+            },
+            error => Promise.reject(error)
+        );
 
-            if (response.status === 401) {
+        // Response Interceptor: Handle 401, 403, and other errors
+        const responseInterceptor = instance.interceptors.response.use(
+            response => response,
+            async error => {
+                const originalRequest = error.config;
+                const status = error.response?.status;
                 const refreshToken = getRefresh();
-                if (refreshToken && !isRefreshing) {
-                    isRefreshing = true;
-                    try {
-                        console.log('[API] Attempting to refresh token...');
-                        const refreshResponse = await fetch('http://localhost:8080/api/auth/refresh', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({ refreshToken }),
-                        });
 
-                        if (refreshResponse.ok) {
-                            const refreshData = await refreshResponse.json();
-                            setTokens(refreshData.accessToken, refreshData.refreshToken);
-                            console.log('[API] Token refreshed successfully. Retrying original request.');
-                            processQueue(null); // Resolve all pending requests
-                            // Retry the original request with new token
-                            headers['Authorization'] = `Bearer ${refreshData.accessToken}`;
-                            response = await fetch(url, {
-                                ...options,
-                                headers,
-                            });
-                        } else {
-                            console.error('[API] Refresh token failed. Clearing tokens.');
-                            clearTokens();
-                            processQueue(new Error('Refresh token failed'));
-                            addToast('세션이 만료되었습니다. 다시 로그인해주세요.', 'error');
-                            // Redirect to home or login page
-                            window.location.href = '/'; // Hard reload to clear state
-                            throw new Error('Refresh token failed');
-                        }
-                    } catch (refreshError) {
-                        console.error('[API] Error during token refresh:', refreshError);
+                // Handle 401 Unauthorized: User is not logged in or session expired
+                if (status === 401) {
+                    // Case 1: No refresh token - User is not logged in or session is fully terminated
+                    if (!refreshToken) {
                         clearTokens();
-                        processQueue(refreshError);
-                        addToast('세션이 만료되었습니다. 다시 로그인해주세요.', 'error');
-                        window.location.href = '/';
-                        throw refreshError;
-                    } finally {
-                        isRefreshing = false;
+                        addToast('로그인이 필요한 서비스입니다.', 'info');
+                        navigate('/login');
+                        return Promise.reject(error);
                     }
-                } else if (isRefreshing) {
-                    // If a refresh is already in progress, queue the request
-                    console.log('[API] Refresh in progress, queuing request.');
-                    return new Promise((resolve, reject) => {
-                        failedQueue.push({ resolve: () => resolve(fetchWithErrorHandler(url, options)), reject });
-                    }) as Promise<T>;
-                } else {
-                    // No refresh token or refresh failed, clear tokens and redirect
-                    console.error('[API] No refresh token available or refresh failed. Clearing tokens.');
-                    clearTokens();
-                    addToast('세션이 만료되었습니다. 다시 로그인해주세요.', 'error');
-                    window.location.href = '/';
-                    throw new Error('No refresh token available');
-                }
-            }
 
-            if (!response.ok) {
-                let errorData: CommonErrorResponse | null = null;
-                try {
-                    errorData = await response.json();
-                } catch (jsonError) {
-                    console.error("Failed to parse error response JSON:", jsonError);
-                }
+                    // Case 2: Refresh token exists - Try to refresh the access token
+                    if (!isRefreshing) {
+                        isRefreshing = true;
+                        try {
+                            const refreshResponse = await axios.post('http://localhost:8080/api/auth/refresh', { refreshToken });
+                            const { accessToken, refreshToken: newRefreshToken } = refreshResponse.data;
+                            setTokens(accessToken, newRefreshToken);
+                            
+                            // Retry the original request with the new token
+                            originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+                            processQueue(null, accessToken);
+                            return instance(originalRequest);
 
-                const errorMessage = errorData?.message || `HTTP error! status: ${response.status}`;
-                const errorCode = errorData?.code || `HTTP_${response.status}`;
-                const requestId = errorData?.requestId || 'N/A';
-                const timestamp = errorData?.timestamp || new Date().toISOString();
-
-                const fullErrorMessage = `${errorMessage} (요청ID: ${requestId})`;
-                addToast(fullErrorMessage, 'error');
-                console.error("API Error Details:", {
-                    code: errorCode,
-                    message: errorMessage,
-                    requestId: requestId,
-                    timestamp: timestamp,
-                    status: response.status,
-                    url: url,
-                });
-
-                if (response.status === 402 && errorCode === "PAYMENT_REQUIRED") {
-                    throw new PaymentRequiredError(errorMessage, errorCode, requestId, timestamp);
+                        } catch (refreshError) {
+                            console.error('Refresh token failed:', refreshError);
+                            clearTokens();
+                            processQueue(refreshError, null);
+                            addToast('세션이 만료되었습니다. 다시 로그인해주세요.', 'error');
+                            navigate('/login');
+                            return Promise.reject(refreshError);
+                        } finally {
+                            isRefreshing = false;
+                        }
+                    } else {
+                        // While token is refreshing, queue subsequent failed requests
+                        return new Promise((resolve, reject) => {
+                            failedQueue.push({
+                                resolve: (token: string) => {
+                                    originalRequest.headers.Authorization = `Bearer ${token}`;
+                                    resolve(instance(originalRequest));
+                                },
+                                reject: (err: any) => {
+                                    reject(err);
+                                }
+                            });
+                        });
+                    }
                 }
 
-                throw new Error(fullErrorMessage);
-            }
 
-            return response.json();
-        } catch (networkError) {
-            if (networkError instanceof PaymentRequiredError) {
-                throw networkError;
-            }
+                // Handle 403 Forbidden
+                if (status === 403) {
+                    addToast('접근 권한이 없습니다.', 'error');
+                    navigate('/'); // Redirect to home for forbidden access
+                    return Promise.reject(error);
+                }
 
-            console.error("Network error:", networkError);
-            const errorMessage = "네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.";
-            addToast(errorMessage, 'error');
-            throw new Error(errorMessage);
+                // Other errors (5xx, 422, etc.)
+                const errorMessage = error.response?.data?.message || error.message;
+                addToast(`오류 발생: ${errorMessage}`, 'error');
+                return Promise.reject(error);
+            }
+        );
+
+        // Cleanup interceptors on component unmount
+        return () => {
+            instance.interceptors.request.eject(requestInterceptor);
+            instance.interceptors.response.eject(responseInterceptor);
+        };
+    }, [navigate, addToast]); // Dependencies remain, but interceptors are stable
+
+    // This is the public function that components will use
+    const fetchWithErrorHandler = useCallback(async <T>(url: string, options?: RequestInit): Promise<T> => {
+        try {
+            const response = await axiosInstance.current({ // Use the ref's current instance
+                url,
+                method: options?.method || 'GET',
+                data: options?.body,
+                headers: options?.headers,
+            });
+            return response.data;
+        } catch (error) {
+            throw error;
         }
-    }, [addToast]);
+    }, []); // No dependencies needed for fetchWithErrorHandler itself, as it uses axiosInstance.current
 
     return { fetchWithErrorHandler };
 }

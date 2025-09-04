@@ -31,13 +31,6 @@ const StoriesList: React.FC = () => {
     const [error, setError] = useState<string>('');
 
     useEffect(() => {
-        const token = getAccess();
-        if (!token) {
-            addToast('로그인이 필요한 서비스입니다.', 'error');
-            // navigate('/'); // Assuming Home page handles redirect
-            return;
-        }
-
         const fetchData = async () => {
             setIsLoading(true);
             try {
