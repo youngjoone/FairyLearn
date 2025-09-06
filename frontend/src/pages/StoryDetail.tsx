@@ -5,6 +5,7 @@ import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/Card'
 import Skeleton from '@/components/ui/Skeleton';
 import EmptyState from '@/components/ui/EmptyState';
 import Button from '@/components/ui/Button';
+import Select from '@/components/ui/FormControls/Select';
 import Meta from '@/lib/seo';
 import { getAccess } from '@/lib/auth';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -19,8 +20,16 @@ interface StoryDetailData {
     status: string;
     createdAt: string;
     pages: { pageNo: number; text: string }[];
-    quiz?: { q: string; a: string }[]; // Add optional quiz field
+    quiz?: { q: string; a: string }[];
 }
+
+const languageOptions = [
+    { value: 'English', label: '영어' },
+    { value: 'Korean', label: '한국어' },
+    { value: 'Chinese', label: '중국어' },
+    { value: 'French', label: '불어' },
+    { value: 'Spanish', label: '스페인어' },
+];
 
 const StoryDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -29,6 +38,8 @@ const StoryDetail: React.FC = () => {
     const { addToast } = useToast();
     const [story, setStory] = useState<StoryDetailData | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [isTranslating, setIsTranslating] = useState<boolean>(false);
+    const [targetLanguage, setTargetLanguage] = useState<string>('English');
     const [error, setError] = useState<string>('');
 
     useEffect(() => {
@@ -36,7 +47,7 @@ const StoryDetail: React.FC = () => {
             setIsLoading(true);
             try {
                 const data = await fetchWithErrorHandler<StoryDetailData>(
-                    `http://localhost:8080/api/stories/${id}`
+                    `/stories/${id}`
                 );
                 setStory(data);
             } catch (err) {
@@ -47,18 +58,24 @@ const StoryDetail: React.FC = () => {
             }
         };
         fetchStory();
-    }, [id, fetchWithErrorHandler, addToast, navigate]);
+    }, [id, fetchWithErrorHandler, addToast]);
+
+    const handleTranslate = async () => {
+        if (!story) return;
+        console.log(`Translating story ${story.id} to ${targetLanguage}`);
+        addToast(`'${targetLanguage}'로 번역 기능은 현재 구현 중입니다.`, 'info');
+    };
 
     const handleDelete = async () => {
         if (!window.confirm('정말로 이 동화를 삭제하시겠습니까?')) {
             return;
         }
         try {
-            await fetchWithErrorHandler(`http://localhost:8080/api/stories/${id}`, {
+            await fetchWithErrorHandler(`/stories/${id}`, {
                 method: 'DELETE',
             });
             addToast('동화가 성공적으로 삭제되었습니다.', 'success');
-            navigate('/stories'); // Navigate back to list
+            navigate('/stories');
         } catch (err) {
             addToast(`동화 삭제 실패: ${err instanceof Error ? err.message : String(err)}`, 'error');
         }
@@ -122,7 +139,7 @@ const StoryDetail: React.FC = () => {
                         )}
                     </CardHeader>
                     <CardContent>
-                        {story.pages.map(page => (
+                        {story.pages && story.pages.map(page => (
                             <p key={page.pageNo} className="mb-4 whitespace-pre-wrap">
                                 {page.text}
                             </p>
@@ -143,11 +160,21 @@ const StoryDetail: React.FC = () => {
                         </div>
                     )}
 
-                    <CardFooter className="flex justify-end space-x-2">
-                        <Button onClick={() => navigate('/stories')} variant="outline">목록으로</Button>
-                        <Button onClick={handleDelete} variant="destructive">삭제</Button>
+                    <CardFooter className="flex justify-end items-center space-x-2">
+                        <Select 
+                            options={languageOptions}
+                            selectedValue={targetLanguage}
+                            onChange={setTargetLanguage}
+                            className="w-32"
+                        />
+                        <Button onClick={handleTranslate}>번역하기</Button>
                     </CardFooter>
                 </Card>
+
+                <div className="flex justify-center space-x-4 mt-6">
+                    <Button onClick={() => navigate('/stories')} variant="outline">목록으로</Button>
+                    <Button onClick={handleDelete} variant="destructive">삭제</Button>
+                </div>
             </div>
         </>
     );
