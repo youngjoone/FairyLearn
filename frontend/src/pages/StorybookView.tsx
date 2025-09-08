@@ -10,7 +10,7 @@ interface StorybookPageData {
     id: number;
     pageNumber: number;
     text: string;
-    imageUrl: string | null;
+    image_url: string | null; // Changed from imageUrl to image_url
 }
 
 const StorybookView: React.FC = () => {
@@ -34,7 +34,7 @@ const StorybookView: React.FC = () => {
                 );
                 setPages(data);
 
-                const allImagesGenerated = data.every(p => p.imageUrl);
+                const allImagesGenerated = data.every(p => p.image_url); // Changed to image_url
                 if (allImagesGenerated && pollingIntervalRef.current) {
                     clearInterval(pollingIntervalRef.current);
                 }
@@ -84,11 +84,13 @@ const StorybookView: React.FC = () => {
 
     const currentPage = pages[currentPageIndex];
 
+    console.log('Current Page Image URL:', currentPage.image_url); // Changed to image_url
+
     return (
         <div className="max-w-4xl mx-auto p-4">
             <div className="border rounded-lg p-4">
-                {currentPage.imageUrl ? (
-                    <img src={currentPage.imageUrl} alt={`Page ${currentPage.pageNumber}`} className="w-full h-auto object-contain rounded-md mb-4" />
+                {currentPage.image_url ? ( // Changed to image_url
+                    <img src={currentPage.image_url} alt={`Page ${currentPage.pageNumber}`} className="w-full h-auto object-contain rounded-md mb-4" />
                 ) : (
                     <div className="w-full h-96 bg-gray-200 flex items-center justify-center rounded-md mb-4">
                         <p>이미지 생성 중...</p>

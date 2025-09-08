@@ -40,8 +40,12 @@ axiosInstance.interceptors.response.use(
     response => response,
     async error => {
         const originalRequest = error.config;
+        console.log('Interceptor: Caught response error', error.response?.status, error.message);
+
         if (error.response?.status === 401 && !originalRequest._retry) {
+            console.log('Interceptor: Handling 401. Refresh token:', getRefresh());
             if (isRefreshing) {
+                console.log('Interceptor: Refreshing in progress, queuing request.');
                 return new Promise(function (resolve, reject) {
                     failedQueue.push({ resolve, reject });
                 }).then(token => {
@@ -55,21 +59,25 @@ axiosInstance.interceptors.response.use(
 
             const refreshToken = getRefresh();
             if (!refreshToken) {
+                console.log('Interceptor: No refresh token found. Redirecting to login.');
                 window.location.href = '/login';
                 return Promise.reject(error);
             }
 
             try {
-                // Use axiosInstance for the refresh call to ensure baseURL is used
+                console.log('Interceptor: Attempting to refresh token.');
                 const { data } = await axiosInstance.post('/auth/refresh', { refreshToken });
                 setTokens(data.accessToken, data.refreshToken);
                 axiosInstance.defaults.headers.common['Authorization'] = 'Bearer ' + data.accessToken;
                 originalRequest.headers['Authorization'] = 'Bearer ' + data.accessToken;
                 processQueue(null, data.accessToken);
+                console.log('Interceptor: Token refresh successful. Retrying original request.');
                 return axiosInstance(originalRequest);
             } catch (refreshError) {
+                console.error('Interceptor: Token refresh failed.', refreshError);
                 clearTokens();
                 processQueue(refreshError, null);
+                console.log('Interceptor: Redirecting to login after refresh failure.');
                 window.location.href = '/login';
                 return Promise.reject(refreshError);
             } finally {
@@ -93,6 +101,7 @@ function useApi() {
             });
             return response.data;
         } catch (error) {
+            console.error('fetchWithErrorHandler caught error:', error);
             throw error;
         }
     }, []);
