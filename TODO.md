@@ -120,3 +120,52 @@ PROFILE={...} MOOD={...}
 ```
 PROFILE/MOOD 반영, 영어 한 줄, 색감/구도/분위기 중심, 브랜드/렌즈 금지.
 ```
+
+---
+
+# 신규 기능: 동화책 생성 개발 계획
+
+## 1. 백엔드: 데이터베이스 및 기반 설정
+- [ ] **DB 마이그레이션:**
+  - [ ] `V12__create_storybook_page_table.sql` 스크립트 작성 (h2 & postgres)
+  - [ ] `storybook_pages` 테이블 생성 (id, story_id, page_number, text, image_url)
+- [ ] **JPA 엔티티 생성:**
+  - [ ] `StorybookPage.java` 엔티티 클래스 생성
+  - [ ] `@ManyToOne` 관계 설정 (StorybookPage -> Story)
+- [ ] **`Story.java` 엔티티 업데이트:**
+  - [ ] `@OneToMany` 관계 설정 (Story -> StorybookPage)
+
+## 2. 이미지 생성 및 저장 (로컬 개발용)
+- [ ] **이미지 저장 디렉토리 생성:**
+  - [ ] `/Users/kyj/testimagedir` 디렉토리 생성
+- [ ] **AI 파이썬 서비스 (`ai-python`):**
+  - [ ] `/ai/generate-image` API 엔드포인트 구현
+  - [ ] DALL-E 호출 로직 추가 (`openai_client.py`)
+  - [ ] 생성된 이미지를 `/Users/kyj/testimagedir`에 고유한 파일명으로 저장
+  - [ ] 저장된 파일의 절대 경로를 API 응답으로 반환
+
+## 3. 백엔드: 동화책 생성 로직 구현
+- [ ] **신규 서비스/컨트롤러 생성:**
+  - [ ] `StorybookService.java` 및 `StorybookController.java` 생성
+- [ ] **동화책 생성 API 구현 (`POST /api/stories/{id}/storybook`):**
+  - [ ] `StorybookService`에 메인 로직 구현
+  - [ ] 동화 텍스트를 문단별로 분리
+  - [ ] **첫 페이지 동기 처리:** 첫 문단에 대한 이미지를 동기적으로 생성 및 저장
+  - [ ] **나머지 페이지 비동기 처리:** `@Async`를 사용하여 2페이지부터 끝까지의 이미지를 백그라운드에서 생성 및 저장
+- [ ] **동화책 페이지 조회 API 구현 (`GET /api/storybook/{id}/pages`):**
+  - [ ] 생성된 페이지와 이미지 경로를 조회하여 반환하는 API
+
+## 4. 프론트엔드: 동화책 보기 UI 구현
+- [ ] **신규 페이지 라우팅 설정:**
+  - [ ] `App.tsx` 또는 라우터 설정 파일에 `/storybook/:id` 경로 추가
+- [ ] **신규 페이지 컴포넌트 생성:**
+  - [ ] `src/pages/StorybookView.tsx` 파일 생성
+- [ ] **`StoryDetail.tsx` 수정:**
+  - [ ] '동화책으로 보기' 버튼 `onClick` 핸들러 구현
+  - [ ] 로딩 상태 관리 (첫 페이지 생성 대기)
+  - [ ] API 호출 후, 생성된 storybook id를 가지고 `/storybook/:id` 페이지로 이동
+- [ ] **`StorybookView.tsx` 페이지 상세 구현:**
+  - [ ] 첫 페이지 데이터(그림, 글)를 표시
+  - [ ] 나머지 페이지들의 그림/글 정보를 주기적으로 폴링(polling)하여 업데이트
+  - [ ] UI 레이아웃: 상단에 그림, 하단에 글 배치
+  - [ ] 페이지 넘김 기능 (좌/우 버튼 등)

@@ -35,10 +35,17 @@ const StoriesList: React.FC = () => {
             setIsLoading(true);
             try {
                 const [storiesData, quotaData] = await Promise.all([
-                    fetchWithErrorHandler<StoryListItem[]>('http://localhost:8080/api/stories'),
-                    fetchWithErrorHandler<StorageQuota>('http://localhost:8080/api/storage/me')
+                    fetchWithErrorHandler<StoryListItem[]>('/stories'),
+                    fetchWithErrorHandler<StorageQuota>('/storage/me')
                 ]);
-                setStories(storiesData);
+                
+                if (Array.isArray(storiesData)) {
+                    setStories(storiesData);
+                } else {
+                    console.error("API response for stories is not an array:", storiesData);
+                    setStories([]); // Set to empty array to prevent crash
+                }
+
                 setQuota(quotaData);
             } catch (err) {
                 setError(err instanceof Error ? err.message : String(err));

@@ -39,6 +39,7 @@ const StoryDetail: React.FC = () => {
     const [story, setStory] = useState<StoryDetailData | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [isTranslating, setIsTranslating] = useState<boolean>(false);
+    const [isCreatingStorybook, setIsCreatingStorybook] = useState<boolean>(false);
     const [targetLanguage, setTargetLanguage] = useState<string>('English');
     const [error, setError] = useState<string>('');
 
@@ -64,6 +65,22 @@ const StoryDetail: React.FC = () => {
         if (!story) return;
         console.log(`Translating story ${story.id} to ${targetLanguage}`);
         addToast(`'${targetLanguage}'로 번역 기능은 현재 구현 중입니다.`, 'info');
+    };
+
+    const handleCreateStorybook = async () => {
+        if (!id) return;
+        setIsCreatingStorybook(true);
+        try {
+            // The API returns the first page, but we don't need to use it directly here.
+            // We just need to know it was successful, then navigate.
+            await fetchWithErrorHandler(`/stories/${id}/storybook`, { method: 'POST' });
+            addToast('동화책 생성을 시작합니다! 잠시 후 동화책 보기 페이지로 이동합니다.', 'success');
+            navigate(`/storybook/${id}`);
+        } catch (err) {
+            addToast(`동화책 생성 실패: ${err instanceof Error ? err.message : String(err)}`, 'error');
+        } finally {
+            setIsCreatingStorybook(false);
+        }
     };
 
     const handleDelete = async () => {
@@ -168,7 +185,9 @@ const StoryDetail: React.FC = () => {
                             className="w-32"
                         />
                         <Button onClick={handleTranslate}>번역하기</Button>
-                        <Button>동화책으로 보기</Button>
+                        <Button onClick={handleCreateStorybook} disabled={isCreatingStorybook}>
+                            {isCreatingStorybook ? '생성 중...' : '동화책으로 보기'}
+                        </Button>
                     </CardFooter>
                 </Card>
 
