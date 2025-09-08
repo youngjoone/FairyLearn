@@ -168,6 +168,7 @@ const StoryDetail: React.FC = () => {
                             className="w-32"
                         />
                         <Button onClick={handleTranslate}>번역하기</Button>
+                        <Button>동화책으로 보기</Button>
                     </CardFooter>
                 </Card>
 
