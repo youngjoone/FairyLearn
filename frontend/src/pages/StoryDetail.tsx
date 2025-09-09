@@ -7,7 +7,6 @@ import EmptyState from '@/components/ui/EmptyState';
 import Button from '@/components/ui/Button';
 import Select from '@/components/ui/FormControls/Select';
 import Meta from '@/lib/seo';
-import { getAccess } from '@/lib/auth';
 import { useToast } from '@/components/ui/ToastProvider';
 
 interface StoryDetailData {
@@ -21,6 +20,7 @@ interface StoryDetailData {
     createdAt: string;
     pages: { pageNo: number; text: string }[];
     quiz?: { q: string; a: string }[];
+    fullAudioUrl?: string; // 오디오 URL 필드 추가
 }
 
 const languageOptions = [
@@ -34,12 +34,13 @@ const languageOptions = [
 const StoryDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { fetchWithErrorHandler } = useApi();
+    const { fetchWithErrorHandler, getApiUrl } = useApi(); // getApiUrl 추가
     const { addToast } = useToast();
     const [story, setStory] = useState<StoryDetailData | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [isTranslating, setIsTranslating] = useState<boolean>(false);
     const [isCreatingStorybook, setIsCreatingStorybook] = useState<boolean>(false);
+    const [isGeneratingAudio, setIsGeneratingAudio] = useState<boolean>(false); // 오디오 생성 로딩 상태
     const [targetLanguage, setTargetLanguage] = useState<string>('English');
     const [error, setError] = useState<string>('');
 
@@ -71,8 +72,6 @@ const StoryDetail: React.FC = () => {
         if (!id) return;
         setIsCreatingStorybook(true);
         try {
-            // The API returns the first page, but we don't need to use it directly here.
-            // We just need to know it was successful, then navigate.
             await fetchWithErrorHandler(`/stories/${id}/storybook`, { method: 'POST' });
             addToast('동화책 생성을 시작합니다! 잠시 후 동화책 보기 페이지로 이동합니다.', 'success');
             navigate(`/storybook/${id}`);
@@ -80,6 +79,20 @@ const StoryDetail: React.FC = () => {
             addToast(`동화책 생성 실패: ${err instanceof Error ? err.message : String(err)}`, 'error');
         } finally {
             setIsCreatingStorybook(false);
+        }
+    };
+
+    const handleGenerateAudio = async () => {
+        if (!id) return;
+        setIsGeneratingAudio(true);
+        try {
+            const audioUrl = await fetchWithErrorHandler<string>(`/stories/${id}/audio`, { method: 'POST' });
+            setStory(prevStory => prevStory ? { ...prevStory, fullAudioUrl: audioUrl } : null);
+            addToast('오디오 생성에 성공했습니다!', 'success');
+        } catch (err) {
+            addToast(`오디오 생성 실패: ${err instanceof Error ? err.message : String(err)}`, 'error');
+        } finally {
+            setIsGeneratingAudio(false);
         }
     };
 
@@ -156,6 +169,13 @@ const StoryDetail: React.FC = () => {
                         )}
                     </CardHeader>
                     <CardContent>
+                        {story.fullAudioUrl && (
+                            <div className="mb-4">
+                                <audio controls className="w-full" src={`${getApiUrl()}${story.fullAudioUrl}`}>
+                                    Your browser does not support the audio element.
+                                </audio>
+                            </div>
+                        )}
                         {story.pages && story.pages.map(page => (
                             <p key={page.pageNo} className="mb-4 whitespace-pre-wrap">
                                 {page.text}
@@ -185,6 +205,11 @@ const StoryDetail: React.FC = () => {
                             className="w-32"
                         />
                         <Button onClick={handleTranslate}>번역하기</Button>
+                        {!story.fullAudioUrl && (
+                            <Button onClick={handleGenerateAudio} disabled={isGeneratingAudio}>
+                                {isGeneratingAudio ? '음성 생성 중...' : '동화책 읽기 (AI)'}
+                            </Button>
+                        )}
                         <Button onClick={handleCreateStorybook} disabled={isCreatingStorybook}>
                             {isCreatingStorybook ? '생성 중...' : '동화책으로 보기'}
                         </Button>

@@ -106,7 +106,11 @@ function useApi() {
         }
     }, []);
 
-    return { fetchWithErrorHandler };
+    const getApiUrl = useCallback(() => {
+        return axiosInstance.defaults.baseURL || '/api';
+    }, []);
+
+    return { fetchWithErrorHandler, getApiUrl };
 }
 
 export default useApi;

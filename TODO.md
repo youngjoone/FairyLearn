@@ -1,3 +1,42 @@
+# 신규 기능: 동화책 오디오(TTS) 기능 개발
+
+## 전체 기능 목표
+- 사용자가 '동화책 읽기' 버튼을 누르면 AI가 생성한 음성으로 동화책 내용을 들을 수 있다.
+- 한 번 생성된 오디오 파일은 저장하여 중복 생성을 방지한다.
+
+---
+
+### 1. 백엔드 (Spring Boot)
+- [ ] **DB/Entity:** `Story.java` Entity에 `fullAudioUrl` 필드가 이미 있는지 최종 확인. (완료 - 확인됨)
+- [ ] **Config:** `WebConfig.java`에 `/audio/**` URL 요청을 로컬 디렉토리(`/Users/kyj/testaudiodir/`)로 연결하는 `addResourceHandlers` 설정 추가.
+- [ ] **Controller:** `StoryController.java`에 오디오 생성을 요청하는 API 엔드포인트 `POST /api/stories/{id}/audio` 추가.
+- [ ] **Service:** `StoryService.java`에 다음 로직 구현:
+    - [ ] `storyId`로 `Story` 조회.
+    - [ ] `fullAudioUrl` 필드에 값이 있는지 확인.
+    - [ ] 값이 있으면, 해당 URL 즉시 반환 (캐싱).
+    - [ ] 값이 없으면, Python AI 서비스에 오디오 생성 요청 (HTTP Call).
+    - [ ] Python으로부터 받은 파일 경로를 가공하여 (`/audio/파일명.mp3` 형태로) `fullAudioUrl` 필드에 저장 (DB 업데이트).
+    - [ ] 새로 저장된 URL을 클라이언트에 반환.
+
+### 2. AI 서비스 (Python)
+- [ ] **API:** Spring Boot 백엔드에서 호출할 TTS 생성 API 엔드포인트 구현 (예: `POST /generate-tts`).
+- [ ] **AI 연동:** 전달받은 텍스트를 OpenAI TTS API로 보내 오디오 데이터 생성.
+- [ ] **파일 저장:** 생성된 오디오 파일(mp3)을 지정된 경로(`/Users/kyj/testaudiodir/`)에 고유한 파일명으로 저장.
+- [ ] **응답:** 저장된 파일명을 Spring Boot 백엔드에 반환.
+
+### 3. 프론트엔드 (React)
+- [ ] **페이지:** `StoryDetail.tsx` 페이지 수정.
+- [ ] **데이터 조회:** 페이지 로드 시 가져오는 `story` 객체에 `fullAudioUrl`이 포함되어 있는지 확인.
+- [ ] **조건부 렌더링:**
+    - [ ] `story.fullAudioUrl`이 있으면, `<audio>` 태그 등을 이용한 오디오 플레이어 UI 렌더링.
+    - [ ] `story.fullAudioUrl`이 없으면, '동화책 읽기' 버튼 렌더링.
+- [ ] **API 연동:**
+    - [ ] '동화책 읽기' 버튼 클릭 시, 백엔드 API(`POST /api/stories/{id}/audio`) 호출.
+    - [ ] API 호출 동안 로딩 상태(스피너, 버튼 비활성화 등) UI 처리.
+    - [ ] API 응답 성공 시, 반환된 `fullAudioUrl`로 상태를 업데이트하여 오디오 플레이어가 표시되도록 함.
+
+---
+
 # TODO — FairyLearn (Docker 미사용 로컬 개발)
 
 ## 0) 리포지토리 초기화
