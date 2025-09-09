@@ -149,6 +149,12 @@ const StoryDetail: React.FC = () => {
         );
     }
 
+    // Handle both old (/audio/...) and new (/api/audio/...) URL formats
+    let finalAudioUrl = story.fullAudioUrl || '';
+    if (finalAudioUrl && !finalAudioUrl.startsWith('/api')) {
+        finalAudioUrl = `/api${finalAudioUrl}`;
+    }
+
     return (
         <>
             <Meta title={story.title} description={`동화: ${story.title}`} />
@@ -171,7 +177,7 @@ const StoryDetail: React.FC = () => {
                     <CardContent>
                         {story.fullAudioUrl && (
                             <div className="mb-4">
-                                <audio controls className="w-full" src={`${getApiUrl()}${story.fullAudioUrl}`}>
+                                <audio controls className="w-full" src={finalAudioUrl}>
                                     Your browser does not support the audio element.
                                 </audio>
                             </div>
