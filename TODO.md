@@ -1,3 +1,22 @@
+# 신규 기능: 소셜 로그인 연동
+
+## 1. 네이버 로그인
+
+### 백엔드 (Spring Boot)
+- [ ] **`application.yml` 설정:**
+    - [ ] `spring.security.oauth2.client.registration.naver` 항목 추가 (client-id, client-secret, scope, redirect-uri 등).
+    - [ ] `spring.security.oauth2.client.provider.naver` 항목 추가 (authorization-uri, token-uri, user-info-uri 등).
+    - [ ] 네이버의 중첩된 응답 처리를 위해 `user-name-attribute`를 `response`로 설정.
+- [ ] **사용자 정보 처리 로직 확인/수정:**
+    - [ ] `OAuth2SuccessHandler` 또는 관련 서비스에서 네이버 응답(`response.id`, `response.email` 등)을 올바르게 파싱하여 User 엔티티에 저장하는지 확인 및 필요시 수정.
+
+### 프론트엔드 (React)
+- [ ] **로그인 페이지 수정 (`Login.tsx`):**
+    - [ ] 네이버 로그인 버튼 UI 추가 (네이버 로고 및 색상 적용).
+    - [ ] 버튼 클릭 시 백엔드 인증 경로 (`/oauth2/authorization/naver`)로 이동하도록 링크 설정.
+
+---
+
 # 신규 기능: 동화책 오디오(TTS) 기능 개발
 
 ## 전체 기능 목표

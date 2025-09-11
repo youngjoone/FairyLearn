@@ -75,6 +75,17 @@ export default function Login() {
               Login
             </button>
           </div>
+          <div className="mt-6 text-center">
+            <p className="text-gray-600">Or login with</p>
+            <div className="flex justify-center mt-4">
+              <a 
+                href="http://localhost:8080/oauth2/authorization/naver"
+                className="bg-[#03C75A] text-white font-bold py-2 px-4 rounded flex items-center space-x-2"
+              >
+                <span>네이버로 로그인</span>
+              </a>
+            </div>
+          </div>
         </form>
       </div>
     </div>
