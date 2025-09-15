@@ -227,3 +227,78 @@ PROFILE/MOOD 반영, 영어 한 줄, 색감/구도/분위기 중심, 브랜드/�
   - [ ] 나머지 페이지들의 그림/글 정보를 주기적으로 폴링(polling)하여 업데이트
   - [ ] UI 레이아웃: 상단에 그림, 하단에 글 배치
   - [ ] 페이지 넘김 기능 (좌/우 버튼 등)
+
+---
+
+## 구글 소셜 로그인 기능 추가 (Google Social Login)
+
+### 1. Google Cloud Platform 설정
+- [ ] Google Cloud Console에서 OAuth 2.0 클라이언트 ID 생성
+- [ ] **클라이언트 ID** 및 **클라이언트 보안 비밀** 확보
+- [ ] 승인된 리디렉션 URI 추가: `http://localhost:8080/login/oauth2/code/google`
+
+### 2. 백엔드 (Spring Boot) 수정
+- **파일**: `backend/src/main/resources/application.yml`
+  - [ ] `spring.security.oauth2.client.registration.google` 설정 추가 (클라이언트 ID, 보안 비밀 등)
+- **파일**: `backend/src/main/java/com/fairylearn/backend/auth/OAuthAttributes.java`
+  - [ ] `of()` 메소드에 `google` case 추가하여 구글 사용자 정보 매핑 로직 구현
+- **파일**: `backend/src/main/java/com/fairylearn/backend/config/SecurityConfig.java`
+  - [ ] `.oauth2Login()` 설정 검토 및 필요시 수정
+- **파일**: `backend/src/main/java/com/fairylearn/backend/auth/OAuth2SuccessHandler.java`
+  - [ ] 로그인 성공 후 프론트엔드 콜백 URL (`/auth/callback`)로 정상적으로 리디렉션 되는지 확인
+
+### 3. 프론트엔드 (React) 수정
+- **파일**: `frontend/src/pages/Login.tsx`
+  - [ ] "Google로 로그인" 버튼 UI 추가
+  - [ ] 버튼 클릭 시 백엔드 로그인 URL (`/oauth2/authorization/google`)로 이동하는 링크 구현
+- **파일**: `frontend/src/pages/AuthCallback.tsx`
+  - [ ] URL 쿼리 파라미터에서 JWT 토큰 추출하는 로직 구현
+  - [ ] 추출한 토큰을 `localStorage`에 저장
+- **파일**: `frontend/src/contexts/AuthContext.tsx`
+  - [ ] 토큰 저장 후, 사용자 인증 상태를 전역적으로 업데이트하는 로직 호출
+
+---
+
+# 구글 소셜 로그인 개발 회고 및 재시도 계획
+
+이번 구글 소셜 로그인 개발 과정에서 여러 문제가 발생하여, 원점에서 다시 시작하기로 결정했습니다. 아래는 문제점 요약 및 향후 권장되는 개발 계획입니다.
+
+## 문제점 요약
+
+1.  **인증 객체 타입 불일치 (`ClassCastException`)**: 구글(OIDC)과 네이버(OAuth2)는 로그인 후 생성하는 Spring Security의 Principal 객체 타입이 다릅니다. 이로 인해 `OAuth2SuccessHandler`에서 객체 변환 예외가 발생했습니다.
+2.  **DB 트랜잭션 경합 (`UsernameNotFoundException`)**: 로그인으로 사용자가 DB에 저장되는 트랜잭션이 끝나기 전에, 후속 API 요청에서 해당 사용자를 조회하려다 실패하는 경합 상태가 지속적으로 발생했습니다. `@Transactional` 어노테이션만으로는 해결되지 않았습니다.
+3.  **잘못된 리팩토링으로 인한 부작용**:
+    *   경합 문제를 해결하기 위해 `JwtAuthFilter`에서 DB 조회를 없애고 Principal을 `String`으로 변경했으나, 컨트롤러는 `User` 객체를 기대하고 있어 `NullPointerException`이 발생했습니다.
+    *   `JwtProvider`의 메소드 시그니처를 변경하면서, 기존 `AuthController`의 코드와 호환성이 깨져 컴파일 에러가 발생했습니다.
+
+## 향후 개발 계획 (피드백)
+
+**핵심 전략**: `JwtAuthFilter`가 DB에 접근하지 않도록 하여, 트랜잭션 경합 문제를 원천적으로 차단합니다. 이를 위해 JWT 토큰이 인증에 필요한 모든 정보를 갖도록 합니다.
+
+### 1. JWT 토큰 정보 확장
+- 로그인 성공 시 생성되는 JWT 토큰의 Payload에 아래 정보를 필수로 포함시킵니다.
+  - **사용자 ID** (예: `userId` claim)
+  - **사용자 이메일** (예: `sub` claim)
+  - **사용자 역할** (예: `roles` claim)
+
+### 2. 단계별 구현 계획 (재시도)
+
+- **`JwtProvider.java` 수정**:
+  - [ ] `generateToken` 메소드가 `User` 객체를 받아, 위 3가지 정보(ID, 이메일, 역할)를 Claim으로 추가하여 토큰을 생성하도록 수정합니다.
+  - [ ] 기존 코드와의 호환성을 위해, 이메일(`String`)만 받는 `generateToken` 오버로딩 메소드도 유지합니다.
+
+- **`OAuth2SuccessHandler.java` 수정**:
+  - [ ] 로그인 성공 후, `authentication.getPrincipal()`을 통해 얻은 정보로 DB에서 `User` 엔티티를 조회합니다. (이 시점의 DB 조회는 트랜잭션이 완료된 후이므로 안전합니다.)
+  - [ ] 조회한 `User` 객체 전체를 위에서 수정한 `jwtProvider.generateToken(user)`에 넘겨 토큰을 생성합니다.
+
+- **`JwtAuthFilter.java` 수정**:
+  - [ ] **DB 조회 로직을 완전히 제거합니다.**
+  - [ ] 토큰 유효성 검증 후, `jwtProvider`를 통해 토큰에서 `userId`, `email`, `roles` Claim을 직접 추출합니다.
+  - [ ] 추출한 정보로 `User` 객체를 **직접 생성**합니다. (DB 조회가 아닌, new 또는 builder 사용)
+    - **주의**: `User` 엔티티의 Builder가 `id`를 설정하지 못하므로, `id`를 설정할 수 있는 생성자나 별도의 Setter가 필요할 수 있습니다. 이 부분은 `User` 엔티티 구조 확인 후 진행해야 합니다.
+  - [ ] 생성된 `User` 객체를 `UsernamePasswordAuthenticationToken`의 Principal로 설정합니다.
+
+- **`StoryController.java` 및 다른 컨트롤러**:
+  - [ ] 기존 코드(롤백된 상태)를 그대로 유지합니다. `@AuthenticationPrincipal User user` 어노테이션이 `JwtAuthFilter`에서 생성한 `User` 객체를 정상적으로 주입받게 됩니다.
+
+이 계획을 따르면, 인증 과정에서 발생하는 모든 DB 경합 문제를 회피하고 안정적이고 효율적인 인증 시스템을 구축할 수 있습니다.
