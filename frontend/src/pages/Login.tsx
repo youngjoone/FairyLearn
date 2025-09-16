@@ -77,12 +77,18 @@ export default function Login() {
           </div>
           <div className="mt-6 text-center">
             <p className="text-gray-600">Or login with</p>
-            <div className="flex justify-center mt-4">
+            <div className="flex justify-center mt-4 space-x-4"> {/* Added space-x-4 for spacing */}
               <a 
                 href="http://localhost:8080/oauth2/authorization/naver"
                 className="bg-[#03C75A] text-white font-bold py-2 px-4 rounded flex items-center space-x-2"
               >
                 <span>네이버로 로그인</span>
+              </a>
+              <a 
+                href="http://localhost:8080/oauth2/authorization/google"
+                className="bg-[#DB4437] text-white font-bold py-2 px-4 rounded flex items-center space-x-2"
+              >
+                <span>Google로 로그인</span>
               </a>
             </div>
           </div>

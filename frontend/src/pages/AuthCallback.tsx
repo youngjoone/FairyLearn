@@ -9,10 +9,12 @@ const AuthCallback: React.FC = () => {
   const { login } = useAuth();
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const token = params.get('token');
-    // Assuming 'refresh' token might also be passed if needed in the future
-    // const refreshToken = params.get('refresh');
+    const hash = location.hash;
+    let token: string | null = null;
+
+    if (hash && hash.startsWith('#token=')) {
+      token = hash.substring('#token='.length);
+    }
 
     if (token) {
       setTokens(token); // Store access token
@@ -21,7 +23,7 @@ const AuthCallback: React.FC = () => {
       navigate('/'); // Redirect to home page
     } else {
       // Handle error or no token case
-      console.error('No token found in callback URL');
+      console.error('No token found in callback URL fragment');
       clearTokens(); // Clear any partial tokens
       navigate('/login-error'); // Or some error page
     }
