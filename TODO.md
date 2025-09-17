@@ -302,3 +302,29 @@ PROFILE/MOOD 반영, 영어 한 줄, 색감/구도/분위기 중심, 브랜드/�
   - [ ] 기존 코드(롤백된 상태)를 그대로 유지합니다. `@AuthenticationPrincipal User user` 어노테이션이 `JwtAuthFilter`에서 생성한 `User` 객체를 정상적으로 주입받게 됩니다.
 
 이 계획을 따르면, 인증 과정에서 발생하는 모든 DB 경합 문제를 회피하고 안정적이고 효율적인 인증 시스템을 구축할 수 있습니다.
+
+---
+
+# 신규 기능: 카카오 소셜 로그인 추가 (수정된 최종 계획)
+
+## 1. 카카오 개발자 설정
+- [ ] [카카오 개발자](https://developers.kakao.com/)에서 애플리케이션 생성
+- [ ] **REST API 키** 확보
+- [ ] 카카오 로그인 활성화 및 Redirect URI 등록: `http://localhost:8080/login/oauth2/code/kakao`
+- [ ] 동의항목 설정: **프로필 정보(닉네임)**, **카카오계정(이메일)** 필수 동의
+
+## 2. 백엔드 (Spring Boot) 수정
+- **`application-local.yml` 수정:**
+  - [ ] `spring.security.oauth2.client.registration.kakao` 설정 추가 (client-id, scope 등)
+  - [ ] `spring.security.oauth2.client.provider.kakao` 설정 추가 (URI 정보)
+- **`CustomOAuth2UserService.java` 수정:**
+  - [ ] `loadUser` 메소드에 `kakao` 분기 추가.
+  - [ ] 카카오의 중첩된 응답(`kakao_account`, `properties`)을 정규화하여 `DefaultOAuth2User`에 담아 반환.
+- **`OAuthAttributes.java` 수정:**
+  - [ ] `of()` 메소드에 `kakao` 분기 추가.
+  - [ ] `ofKakao()` 메소드 구현 (정규화된 attributes 사용).
+
+## 3. 프론트엔드 (React) 수정
+- **`Login.tsx` 수정:**
+  - [ ] "카카오로 로그인" 버튼 UI 추가.
+  - [ ] 백엔드 카카오 로그인 URL (`/oauth2/authorization/kakao`)로 링크.
