@@ -90,6 +90,12 @@ export default function Login() {
               >
                 <span>Google로 로그인</span>
               </a>
+              <a 
+                href="http://localhost:8080/oauth2/authorization/kakao"
+                className="bg-[#FEE500] text-black font-bold py-2 px-4 rounded flex items-center space-x-2"
+              >
+                <span>카카오로 로그인</span>
+              </a>
             </div>
           </div>
         </form>
