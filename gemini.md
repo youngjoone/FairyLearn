@@ -1,25 +1,45 @@
-# 신규 기능: 카카오 소셜 로그인 추가 (수정된 최종 계획)
+# 신규 기능: 구독 기반 결제 시스템 도입
 
-## 1. 사전 준비: 카카오 개발자 설정
+## 1. 비즈니스 목표 및 요구사항
 
-*   **[완료]** [카카오 개발자](https://developers.kakao.com/)에서 애플리케이션 생성
-*   **[완료]** **REST API 키** 및 **Client Secret** 확보
-*   **[확인 필요]** 카카오 로그인 활성화 및 Redirect URI 등록: `http://localhost:8080/login/oauth2/code/kakao`
-*   **[확인 필요]** 동의항목 설정: **프로필 정보(닉네임)**, **카카오계정(이메일)** 필수 동의
+- **목표:** 구독 기반의 '프리미엄' 멤버십 모델을 도입하여 서비스의 핵심 기능을 유료화하고, 지속 가능한 수익 모델을 구축한다.
+- **구독 모델:** 월간 구독
+- **프리미엄 혜택:**
+  - [ ] 동화책(그림 포함) AI 생성 기능 이용
+  - [ ] 생성한 동화책 10개 이상 보관 가능
+- **결제 수단:**
+  - [ ] 국내 사용자: 토스페이, 카카오페이, 모든 신용카드 등
+  - [ ] 해외 사용자: Visa, Mastercard 등 해외 발급 카드
+- **비용 관리 전략 (단계적 접근):**
+  - **1단계 (초기):** '공정 이용 정책' 기반의 소프트 리밋으로 운영. 사용자에게는 '무제한'으로 홍보하되, 백엔드에서 사용량을 로깅하여 데이터 수집.
+  - **2단계 (안정기):** 수집된 데이터를 바탕으로 합리적인 '월간 생성 쿼터'를 도입하는 것을 고려.
 
-## 2. 백엔드 개발 계획 (Spring Boot)
+## 2. 기술 전략: 이중 결제 게이트웨이(Dual PG) 도입
 
-*   **`backend/src/main/resources/application-local.yml` 수정:**
-    *   [ ] `spring.security.oauth2.client.registration.kakao` 설정 추가
-    *   [ ] `spring.security.oauth2.client.provider.kakao` 설정 추가
-*   **`backend/src/main/java/com/fairylearn/backend/auth/CustomOAuth2UserService.java` 수정:**
-    *   [ ] `loadUser` 메소드에 `kakao` 분기 추가하여 응답 정규화
-*   **`backend/src/main/java/com/fairylearn/backend/auth/OAuthAttributes.java` 수정:**
-    *   [ ] `of()` 메소드에 `kakao` 분기 추가
-    *   [ ] `ofKakao()` 메소드 구현 (정규화된 attributes 사용)
+- **국내 결제:** **포트원(PortOne, 구 아임포트)**을 연동하여 토스페이, 카카오페이, 국내 카드 등 모든 결제수단을 한 번에 지원.
+- **해외 결제:** **스트라이프(Stripe)**를 연동하여 Visa, Mastercard 등 해외 카드 결제를 안정적으로 지원.
+- **구현 방식:** 프론트엔드에서 사용자 지역에 따라 적절한 PG 결제창을 호출하고, 백엔드는 두 PG의 API와 웹훅을 모두 처리할 수 있도록 '전략 패턴'을 사용하여 구현.
 
-## 3. 프론트엔드 개발 계획 (React)
+## 3. 백엔드 개발 계획 (Spring Boot)
 
-*   **`frontend/src/pages/Login.tsx` 수정:**
-    *   [ ] "카카오로 로그인" 버튼 UI 추가
-    *   [ ] 백엔드 카카오 로그인 URL (`/oauth2/authorization/kakao`)로 링크
+- **[ ] 1. DB 스키마 변경:**
+  - [ ] `users` 테이블에 구독 상태 관련 컬럼 추가 (`role`을 `ROLE_PREMIUM`으로 활용, `subscription_end_date` 추가).
+  - [ ] `payments` 테이블 신규 생성 (결제 이력 추적).
+- **[ ] 2. 핵심 권한 체크 로직 구현:**
+  - [ ] 동화책 생성(`StorybookService`), 동화 저장(`StoryService`) 등 프리미엄 기능 사용 시, 사용자의 `role` 및 `subscription_end_date`를 확인하는 권한 체크 로직 추가.
+- **[ ] 3. 결제 API 및 구독 생애주기 관리 구현:**
+  - [ ] `BillingController` 및 `PaymentService` (인터페이스), `PortonePaymentService`, `StripePaymentService` (구현체) 생성.
+  - [ ] 결제 요청 API (`POST /api/billing/request`) 구현.
+  - [ ] 결제 성공 처리 API (`GET /api/billing/success`) 구현 (서버사이드 검증 포함).
+  - [ ] PG 웹훅 수신 API (`POST /api/billing/webhook/portone`, `POST /api/billing/webhook/stripe`) 구현 (자동 갱신 처리).
+  - [ ] 구독 만료 사용자 등급을 자동으로 변경하는 스케줄링 작업 (`@Scheduled`) 구현.
+
+## 4. 프론트엔드 개발 계획 (React)
+
+- **[ ] 1. '구독/결제' 페이지 신규 생성:**
+  - [ ] 프리미엄 플랜의 혜택과 가격을 안내하는 UI 구현.
+  - [ ] 사용자의 지역(또는 통화 선택)에 따라 포트원 또는 스트라이프 결제 버튼을 렌더링.
+- **[ ] 2. 결제 연동 로직 구현:**
+  - [ ] 결제 버튼 클릭 시 백엔드에 결제 요청 후, 응답에 따라 포트원 또는 스트라이프의 결제창 SDK 호출.
+- **[ ] 3. 결제 결과 페이지 구현:**
+  - [ ] 결제 성공/실패 시 결과를 안내하는 UI 페이지 생성.
