@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { setTokens, clearTokens, getAccess } from '../lib/auth'; // Import auth utilities
+import { setTokens, clearTokens } from '../lib/auth'; // Import auth utilities
 import { useAuth } from '@/contexts/AuthContext';
 
 const AuthCallback: React.FC = () => {
@@ -9,23 +9,19 @@ const AuthCallback: React.FC = () => {
   const { login } = useAuth();
 
   useEffect(() => {
-    const hash = location.hash;
-    let token: string | null = null;
+    const params = new URLSearchParams(location.search);
+    const accessToken = params.get('accessToken');
+    const refreshToken = params.get('refreshToken');
 
-    if (hash && hash.startsWith('#token=')) {
-      token = hash.substring('#token='.length);
-    }
-
-    if (token) {
-      setTokens(token); // Store access token
+    if (accessToken && refreshToken) {
+      setTokens(accessToken, refreshToken); // Store both tokens
       login(); // Update auth state
-      console.log('saved', getAccess()); // Defensive logging
       navigate('/'); // Redirect to home page
     } else {
       // Handle error or no token case
-      console.error('No token found in callback URL fragment');
+      console.error('Access token or refresh token not found in callback URL query parameters');
       clearTokens(); // Clear any partial tokens
-      navigate('/login-error'); // Or some error page
+      navigate('/login'); // Redirect to login page on error
     }
   }, [location, navigate, login]);
 
