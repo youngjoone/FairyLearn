@@ -1,63 +1,59 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { twMerge } from 'tailwind-merge';
+import Button from './Button';
 
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
-  children: React.ReactNode;
+  title?: string;
   className?: string;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
 }
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, className }) => {
-  const modalRef = useRef<HTMLDivElement>(null);
+const modalRoot = typeof document !== 'undefined' ? document.body : null;
 
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, className, children, footer }) => {
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'; // Prevent scrolling when modal is open
-    } else {
-      document.body.style.overflow = 'unset';
-    }
+    if (!isOpen) return;
 
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
         onClose();
       }
     };
-
-    document.addEventListener('keydown', handleEscape);
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset'; // Ensure scroll is reset on unmount
-    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
   }, [isOpen, onClose]);
 
-  const handleOverlayClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
-      onClose();
-    }
-  };
-
-  if (!isOpen) return null;
+  if (!isOpen || !modalRoot) {
+    return null;
+  }
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
-      onClick={handleOverlayClick}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
       <div
-        ref={modalRef}
         className={twMerge(
-          'relative bg-background rounded-lg shadow-lg p-6 max-w-lg w-full',
+          'w-full max-w-lg rounded-lg bg-white text-foreground shadow-xl dark:bg-slate-900',
           className
         )}
         role="dialog"
         aria-modal="true"
       >
-        {children}
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <h2 className="text-lg font-semibold">{title}</h2>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            ✕
+          </Button>
+        </div>
+        <div className="px-6 py-4 space-y-4">
+          {children}
+        </div>
+        {footer && <div className="border-t border-border px-6 py-4 flex justify-end gap-2">{footer}</div>}
       </div>
     </div>,
-    document.body // Render into the body
+    modalRoot
   );
 };
 

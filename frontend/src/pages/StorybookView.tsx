@@ -14,7 +14,7 @@ interface StorybookPageData {
 }
 
 const StorybookView: React.FC = () => {
-    const { id } = useParams<{ id: string }>();
+    const { id, slug } = useParams<{ id?: string; slug?: string }>();
     const navigate = useNavigate();
     const { fetchWithErrorHandler } = useApi();
     const { addToast } = useToast();
@@ -29,9 +29,10 @@ const StorybookView: React.FC = () => {
     useEffect(() => {
         const fetchPages = async () => {
             try {
-                const data = await fetchWithErrorHandler<StorybookPageData[]>(
-                    `/stories/${id}/storybook/pages`
-                );
+                const endpoint = slug
+                    ? `/public/shared-stories/${slug}/storybook/pages`
+                    : `/stories/${id}/storybook/pages`;
+                const data = await fetchWithErrorHandler<StorybookPageData[]>(endpoint);
                 setPages(data);
 
                 const allImagesGenerated = data.every(p => p.image_url); // Changed to image_url
@@ -60,7 +61,7 @@ const StorybookView: React.FC = () => {
                 clearInterval(pollingIntervalRef.current);
             }
         };
-    }, [id, fetchWithErrorHandler, addToast]);
+    }, [id, slug, fetchWithErrorHandler, addToast]);
 
     const goToNextPage = () => {
         setCurrentPageIndex(prev => Math.min(prev + 1, pages.length - 1));
@@ -106,7 +107,11 @@ const StorybookView: React.FC = () => {
             </div>
 
             <div className="text-center mt-6">
-                <Button onClick={() => navigate(`/stories/${id}`)} variant="outline">원래 동화로 돌아가기</Button>
+                {slug ? (
+                    <Button onClick={() => navigate(`/shared/${slug}`)} variant="outline">공유 페이지로 돌아가기</Button>
+                ) : (
+                    <Button onClick={() => navigate(`/stories/${id}`)} variant="outline">원래 동화로 돌아가기</Button>
+                )}
             </div>
         </div>
     );

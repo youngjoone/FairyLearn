@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import useApi from '@/hooks/useApi';
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/Card';
@@ -8,6 +8,13 @@ import Button from '@/components/ui/Button';
 import Select from '@/components/ui/FormControls/Select';
 import Meta from '@/lib/seo';
 import { useToast } from '@/components/ui/ToastProvider';
+import Modal from '@/components/ui/Modal';
+
+interface StoryPageData {
+    id?: number;
+    pageNo: number;
+    text: string;
+}
 
 interface StoryDetailData {
     id: number;
@@ -15,12 +22,23 @@ interface StoryDetailData {
     ageRange: string;
     topics: string[];
     language: string;
-    lengthLevel: string;
+    lengthLevel?: string | null;
     status: string;
     createdAt: string;
-    pages: { pageNo: number; text: string }[];
+    pages: StoryPageData[];
     quiz?: { q: string; a: string }[];
-    fullAudioUrl?: string; // 오디오 URL 필드 추가
+    fullAudioUrl?: string;
+    shareSlug?: string;
+    sharedAt?: string;
+    manageable?: boolean;
+}
+
+interface SharedStoryDetailResponse {
+    share_slug: string;
+    title: string;
+    shared_at: string;
+    manageable: boolean;
+    story: any;
 }
 
 const languageOptions = [
@@ -32,27 +50,95 @@ const languageOptions = [
 ];
 
 const StoryDetail: React.FC = () => {
-    const { id } = useParams<{ id: string }>();
+    const { id, slug } = useParams<{ id?: string; slug?: string }>();
     const navigate = useNavigate();
-    const { fetchWithErrorHandler, getApiUrl } = useApi(); // getApiUrl 추가
+    const { fetchWithErrorHandler } = useApi();
     const { addToast } = useToast();
     const [story, setStory] = useState<StoryDetailData | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [isTranslating, setIsTranslating] = useState<boolean>(false);
     const [isCreatingStorybook, setIsCreatingStorybook] = useState<boolean>(false);
     const [isGeneratingAudio, setIsGeneratingAudio] = useState<boolean>(false); // 오디오 생성 로딩 상태
+    const [isSharing, setIsSharing] = useState<boolean>(false);
+    const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
     const [targetLanguage, setTargetLanguage] = useState<string>('English');
     const [error, setError] = useState<string>('');
+    const [shareLink, setShareLink] = useState<string>('');
+    const [isAudioVisible, setIsAudioVisible] = useState<boolean>(false);
+    const isSharedView = Boolean(slug);
+    const canManage = story?.manageable ?? !isSharedView;
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+
+    interface ShareResponse {
+        shareSlug: string;
+        shareUrl: string;
+    }
+
+    const normalizeStory = (raw: any): StoryDetailData => {
+        if (!raw) {
+            throw new Error('Story payload is empty');
+        }
+
+        const topics = raw.topics ?? raw.topics_json ?? [];
+        const pages: StoryPageData[] = (raw.pages ?? []).map((page: any) => ({
+            id: page.id,
+            pageNo: page.pageNo ?? page.page_no ?? 0,
+            text: page.text ?? '',
+        }));
+
+        return {
+            id: raw.id,
+            title: raw.title,
+            ageRange: raw.ageRange ?? raw.age_range ?? '',
+            topics: Array.isArray(topics) ? topics : String(topics ?? '').split(',').filter(Boolean),
+            language: raw.language,
+            lengthLevel: raw.lengthLevel ?? raw.length_level ?? null,
+            status: raw.status ?? '',
+            createdAt: raw.createdAt ?? raw.created_at ?? new Date().toISOString(),
+            pages,
+            quiz: raw.quiz,
+            fullAudioUrl: raw.fullAudioUrl ?? raw.full_audio_url,
+            shareSlug: raw.shareSlug ?? raw.share_slug,
+            sharedAt: raw.sharedAt ?? raw.shared_at,
+            manageable: raw.manageable,
+        };
+    };
 
     useEffect(() => {
         const fetchStory = async () => {
+            if (!id && !slug) {
+                setError('잘못된 링크입니다.');
+                return;
+            }
             setIsLoading(true);
             try {
-                const data = await fetchWithErrorHandler<StoryDetailData>(
-                    `/stories/${id}`
-                );
-                setStory(data);
+                if (isSharedView && slug) {
+                    const data = await fetchWithErrorHandler<SharedStoryDetailResponse>(
+                        `/public/shared-stories/${slug}`
+                    );
+                    const normalized = normalizeStory(data.story);
+                    normalized.shareSlug = normalized.shareSlug ?? data.share_slug;
+                    normalized.sharedAt = normalized.sharedAt ?? data.shared_at;
+                    normalized.manageable = data.manageable;
+                    console.log('[StoryDetail] shared load success', normalized);
+                    setStory(normalized);
+                    setShareLink(`${window.location.origin}/shared/${data.share_slug}`);
+                } else if (id) {
+                    const raw = await fetchWithErrorHandler<any>(
+                        `/stories/${id}`
+                    );
+                    const normalized = normalizeStory(raw);
+                    normalized.manageable = normalized.manageable ?? true;
+                    console.log('[StoryDetail] owner load success', normalized);
+                    setStory(normalized);
+                    if (normalized.shareSlug) {
+                        setShareLink(`${window.location.origin}/shared/${normalized.shareSlug}`);
+                    } else {
+                        setShareLink('');
+                    }
+                }
             } catch (err) {
+                console.error('[StoryDetail] load error', err);
                 setError(err instanceof Error ? err.message : String(err));
                 addToast(`동화 불러오기 실패: ${err instanceof Error ? err.message : String(err)}`, 'error');
             } finally {
@@ -60,7 +146,29 @@ const StoryDetail: React.FC = () => {
             }
         };
         fetchStory();
-    }, [id, fetchWithErrorHandler, addToast]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id, slug, isSharedView, fetchWithErrorHandler, addToast]);
+
+    useEffect(() => {
+        setIsAudioVisible(false);
+    }, [story?.id, story?.shareSlug]);
+
+    useEffect(() => {
+        if (isAudioVisible && story?.fullAudioUrl && audioRef.current) {
+            audioRef.current.load();
+        }
+    }, [isAudioVisible, story?.fullAudioUrl]);
+
+    useEffect(() => {
+        // 스토리가 바뀌면 오디오 플레이어는 다시 숨김 상태로 초기화
+        setIsAudioVisible(false);
+    }, [story?.id, story?.shareSlug]);
+
+    useEffect(() => {
+        if (isAudioVisible && story?.fullAudioUrl && audioRef.current) {
+            audioRef.current.load();
+        }
+    }, [isAudioVisible, story?.fullAudioUrl]);
 
     const handleTranslate = async () => {
         if (!story) return;
@@ -69,12 +177,37 @@ const StoryDetail: React.FC = () => {
     };
 
     const handleCreateStorybook = async () => {
-        if (!id) return;
+        if (!story) return;
+        const sharedSlug = story.shareSlug || slug;
+        const storyId = story.id;
+
+        if (!canManage) {
+            if (!sharedSlug) {
+                addToast('공유 정보를 확인할 수 없습니다.', 'error');
+                return;
+            }
+            setIsCreatingStorybook(true);
+            try {
+                await fetchWithErrorHandler(`/public/shared-stories/${sharedSlug}/storybook`, { method: 'POST' });
+                navigate(`/shared/${sharedSlug}/storybook`);
+            } catch (err) {
+                addToast(`동화책 생성 실패: ${err instanceof Error ? err.message : String(err)}`, 'error');
+            } finally {
+                setIsCreatingStorybook(false);
+            }
+            return;
+        }
+
+        if (!storyId) return;
         setIsCreatingStorybook(true);
         try {
-            await fetchWithErrorHandler(`/stories/${id}/storybook`, { method: 'POST' });
+            await fetchWithErrorHandler(`/stories/${storyId}/storybook`, { method: 'POST' });
             addToast('동화책 생성을 시작합니다! 잠시 후 동화책 보기 페이지로 이동합니다.', 'success');
-            navigate(`/storybook/${id}`);
+            if (sharedSlug) {
+                navigate(`/shared/${sharedSlug}/storybook`);
+            } else {
+                navigate(`/storybook/${storyId}`);
+            }
         } catch (err) {
             addToast(`동화책 생성 실패: ${err instanceof Error ? err.message : String(err)}`, 'error');
         } finally {
@@ -82,13 +215,105 @@ const StoryDetail: React.FC = () => {
         }
     };
 
-    const handleGenerateAudio = async () => {
+    const ensureShareLink = () => {
+        if (shareLink) {
+            return shareLink;
+        }
+        const slugSource = story?.shareSlug || slug;
+        if (!slugSource) {
+            return '';
+        }
+        return `${window.location.origin}/shared/${slugSource}`;
+    };
+
+    const handleShareStory = async () => {
+        if (!canManage) {
+            addToast('이미 공유된 동화입니다.', 'info');
+            return;
+        }
         if (!id) return;
+        setIsSharing(true);
+        try {
+            const response = await fetchWithErrorHandler<ShareResponse>(`/stories/${id}/share`, { method: 'POST' });
+            setStory(prev => prev ? { ...prev, shareSlug: response.shareSlug } : prev);
+            setShareLink(response.shareUrl);
+            addToast('공유 게시판에 등록되었어요. 링크를 복사해 공유해보세요!', 'success');
+        } catch (err) {
+            addToast(`공유하기 실패: ${err instanceof Error ? err.message : String(err)}`, 'error');
+        } finally {
+            setIsSharing(false);
+        }
+    };
+
+    const handleCopyShareLink = async () => {
+        const linkToCopy = ensureShareLink();
+        if (!linkToCopy) {
+            addToast('공유 링크를 생성한 뒤 다시 시도해주세요.', 'error');
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(linkToCopy);
+            addToast('공유 링크를 복사했습니다.', 'success');
+        } catch (err) {
+            console.error('Failed to copy share link', err);
+            addToast('클립보드 복사에 실패했어요.', 'error');
+        }
+    };
+
+    const handleGenerateAudio = async () => {
+        if (!story) return;
+        const sharedSlug = story.shareSlug || slug;
+        const storyId = story.id;
+
+        if (!canManage) {
+            if (story.fullAudioUrl) {
+                setIsAudioVisible(true);
+                setTimeout(() => {
+                    audioRef.current?.play().catch(() => {
+                        addToast('브라우저가 자동 재생을 막았어요. 플레이 버튼을 눌러주세요.', 'info');
+                    });
+                }, 0);
+                return;
+            }
+            if (!sharedSlug) {
+                addToast('공유 정보를 확인할 수 없습니다.', 'error');
+                return;
+            }
+            setIsGeneratingAudio(true);
+            try {
+                const audioUrl = await fetchWithErrorHandler<string>(
+                    `/public/shared-stories/${sharedSlug}/audio`,
+                    { method: 'POST' }
+                );
+                setStory(prev => prev ? { ...prev, fullAudioUrl: audioUrl } : prev);
+                setShareLink(`${window.location.origin}/shared/${sharedSlug}`);
+                addToast('AI 음성을 생성했어요!', 'success');
+                setIsAudioVisible(true);
+                setTimeout(() => {
+                    audioRef.current?.play().catch(() => {
+                        addToast('브라우저가 자동 재생을 막았어요. 플레이 버튼을 눌러주세요.', 'info');
+                    });
+                }, 300);
+            } catch (err) {
+                addToast(`오디오 생성 실패: ${err instanceof Error ? err.message : String(err)}`, 'error');
+            } finally {
+                setIsGeneratingAudio(false);
+            }
+            return;
+        }
+
+        if (!storyId) return;
         setIsGeneratingAudio(true);
         try {
-            const audioUrl = await fetchWithErrorHandler<string>(`/stories/${id}/audio`, { method: 'POST' });
+            const audioUrl = await fetchWithErrorHandler<string>(`/stories/${storyId}/audio`, { method: 'POST' });
             setStory(prevStory => prevStory ? { ...prevStory, fullAudioUrl: audioUrl } : null);
             addToast('오디오 생성에 성공했습니다!', 'success');
+            setIsAudioVisible(true);
+            setTimeout(() => {
+                audioRef.current?.play().catch(() => {
+                    addToast('브라우저가 자동 재생을 막았어요. 플레이 버튼을 눌러주세요.', 'info');
+                });
+            }, 300);
         } catch (err) {
             addToast(`오디오 생성 실패: ${err instanceof Error ? err.message : String(err)}`, 'error');
         } finally {
@@ -97,11 +322,12 @@ const StoryDetail: React.FC = () => {
     };
 
     const handleDelete = async () => {
+        if (!canManage) return;
         if (!window.confirm('정말로 이 동화를 삭제하시겠습니까?')) {
             return;
         }
         try {
-            await fetchWithErrorHandler(`/stories/${id}`, {
+            await fetchWithErrorHandler(`/stories/${story?.id ?? id}`, {
                 method: 'DELETE',
             });
             addToast('동화가 성공적으로 삭제되었습니다.', 'success');
@@ -173,11 +399,29 @@ const StoryDetail: React.FC = () => {
                                 주제: {story.topics.join(', ')}
                             </p>
                         )}
+                        {story.sharedAt && (
+                            <p className="text-sm text-muted-foreground">
+                                공유일: {new Date(story.sharedAt).toLocaleString()}
+                            </p>
+                        )}
+                        {isSharedView && (
+                            <div className="mt-3 flex gap-2">
+                                <Button variant="outline" onClick={handleCopyShareLink}>
+                                    공유 링크 복사
+                                </Button>
+                            </div>
+                        )}
                     </CardHeader>
                     <CardContent>
-                        {story.fullAudioUrl && (
+                        {isAudioVisible && story.fullAudioUrl && (
                             <div className="mb-4">
-                                <audio controls className="w-full" src={finalAudioUrl}>
+                                <audio
+                                    controls
+                                    className="w-full"
+                                    src={finalAudioUrl}
+                                    ref={audioRef}
+                                    preload="none"
+                                >
                                     Your browser does not support the audio element.
                                 </audio>
                             </div>
@@ -203,7 +447,7 @@ const StoryDetail: React.FC = () => {
                         </div>
                     )}
 
-                    <CardFooter className="flex justify-end items-center space-x-2">
+                    <CardFooter className="flex flex-wrap justify-end items-center gap-2">
                         <Select 
                             options={languageOptions}
                             selectedValue={targetLanguage}
@@ -211,22 +455,60 @@ const StoryDetail: React.FC = () => {
                             className="w-32"
                         />
                         <Button onClick={handleTranslate}>번역하기</Button>
-                        {!story.fullAudioUrl && (
-                            <Button onClick={handleGenerateAudio} disabled={isGeneratingAudio}>
-                                {isGeneratingAudio ? '음성 생성 중...' : '동화책 읽기 (AI)'}
+                        {canManage && (
+                            <Button onClick={() => setIsShareModalOpen(true)}>
+                                공유하기
                             </Button>
                         )}
+                        <Button onClick={handleGenerateAudio} disabled={isGeneratingAudio}>
+                            {story.fullAudioUrl && !isGeneratingAudio ? '동화책 읽기 (AI)' : isGeneratingAudio ? '음성 생성 중...' : '동화책 읽기 (AI)'}
+                        </Button>
                         <Button onClick={handleCreateStorybook} disabled={isCreatingStorybook}>
-                            {isCreatingStorybook ? '생성 중...' : '동화책으로 보기'}
+                            {isCreatingStorybook ? '동화책 준비 중...' : '동화책으로 보기'}
                         </Button>
                     </CardFooter>
                 </Card>
 
                 <div className="flex justify-center space-x-4 mt-6">
-                    <Button onClick={() => navigate('/stories')} variant="outline">목록으로</Button>
-                    <Button onClick={handleDelete} variant="destructive">삭제</Button>
+                    {isSharedView ? (
+                        <Button onClick={() => navigate('/shared')} variant="outline">공유 게시판으로</Button>
+                    ) : (
+                        <Button onClick={() => navigate('/stories')} variant="outline">목록으로</Button>
+                    )}
+                    {canManage && (
+                        <Button onClick={handleDelete} variant="destructive">삭제</Button>
+                    )}
                 </div>
             </div>
+            {canManage && !isSharedView && (
+                <Modal
+                    isOpen={isShareModalOpen}
+                    onClose={() => setIsShareModalOpen(false)}
+                    title="동화 공유하기"
+                    footer={(
+                        <Button variant="ghost" onClick={() => setIsShareModalOpen(false)}>
+                            닫기
+                        </Button>
+                    )}
+                >
+                    <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                            동화를 공유하면 누구나 게시판에서 읽을 수 있어요. 공유 후 버튼을 다시 눌러 링크를 복사할 수 있습니다.
+                        </p>
+                        <Button onClick={handleShareStory} disabled={isSharing} className="w-full">
+                            {isSharing ? '공유 중...' : '동화 게시판으로 공유하기'}
+                        </Button>
+                        <Button onClick={handleCopyShareLink} variant="outline" className="w-full">
+                            링크 복사
+                        </Button>
+                        {ensureShareLink() && (
+                            <div className="rounded-md bg-muted p-3 text-sm break-all">
+                                {ensureShareLink()}
+                            </div>
+                        )}
+                    </div>
+                </Modal>
+            )}
         </>
     );
 };

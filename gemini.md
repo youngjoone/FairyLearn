@@ -43,3 +43,44 @@
   - [ ] 결제 버튼 클릭 시 백엔드에 결제 요청 후, 응답에 따라 포트원 또는 스트라이프의 결제창 SDK 호출.
 - **[ ] 3. 결제 결과 페이지 구현:**
   - [ ] 결제 성공/실패 시 결과를 안내하는 UI 페이지 생성.
+
+---
+
+# Refresh Token 기반 자동 인증 갱신 기능 보완 계획
+
+## 1. 문제점 분석
+
+- 현재 이메일/패스워드 로그인은 Access/Refresh Token을 모두 발급하지만, **소셜 로그인(Google 등)은 Access Token만 발급**하고 있습니다. (`OAuth2SuccessHandler.java`)
+- 이로 인해 소셜 로그인 사용자는 Refresh Token이 없어, Access Token 만료 시 401 에러가 발생하면 자동 갱신(Silent Refresh)에 실패하고 즉시 로그아웃되는 불편함을 겪고 있습니다.
+- 프론트엔드의 API 클라이언트(`useApi.ts`)에는 이미 자동 갱신 로직이 구현되어 있으나, Refresh Token이 없으면 무용지물입니다.
+
+## 2. 해결 목표
+
+- 소셜 로그인 시에도 Refresh Token을 정상적으로 발급하고 프론트엔드에 전달하여, 모든 사용자가 Access Token 만료 시 자동 갱신 혜택을 받을 수 있도록 합니다.
+
+## 3. 상세 수정 계획
+
+### Phase 1: Backend - 소셜 로그인 응답 변경
+
+- **File:** `backend/src/main/java/com/fairylearn/backend/auth/OAuth2SuccessHandler.java`
+- **Instructions:**
+    1.  기존에 Access Token만 생성하던 로직을 수정합니다.
+    2.  `jwtProvider.generateToken(user)`으로 Access Token을 생성합니다.
+    3.  `jwtProvider.generateRefreshToken(user.getEmail())` (또는 `user.getId()`)으로 Refresh Token을 생성하고, `RefreshTokenEntity`를 만들어 DB에 저장합니다. (`AuthController`의 로직과 동일하게 구현)
+    4.  프론트엔드로 리디렉션하는 URL을 수정합니다. 기존에는 `#token=`으로 Access Token만 전달했지만, 이제 두 토큰을 모두 전달해야 합니다. URL 쿼리 파라미터를 사용하는 것이 더 표준적입니다.
+    5.  **변경 후 리디렉션 URL 예시:** `https://<frontend-url>/auth/callback?accessToken=<jwt>&refreshToken=<refresh_jwt>`
+
+### Phase 2: Frontend - 소셜 로그인 콜백 처리 수정
+
+- **File:** `frontend/src/pages/AuthCallback.tsx` (이 파일의 존재를 가정하고 계획을 세웁니다.)
+- **Instructions:**
+    1.  페이지가 로드될 때, URL의 해시(`#`)가 아닌 **쿼리 파라미터(`?`)**에서 `accessToken`과 `refreshToken`을 추출하도록 로직을 수정합니다.
+    2.  `URLSearchParams`를 사용하여 `accessToken`과 `refreshToken` 값을 읽어옵니다.
+    3.  `lib/auth.ts`에 있는 `setTokens(accessToken, refreshToken)` 함수를 호출하여 두 토큰을 `localStorage`에 저장합니다.
+    4.  `AuthContext`의 `login()` 함수를 호출하여 전역 상태를 '로그인'으로 변경하고, 사용자를 홈 페이지로 리디렉션합니다.
+
+## 4. 기대 효과
+
+- 로그인 방식(이메일, 소셜)에 관계없이 모든 사용자가 Refresh Token을 보유하게 됩니다.
+- Access Token이 만료되어 API 요청이 401 에러를 반환하더라도, `useApi.ts`의 인터셉터가 Refresh Token을 사용하여 자동으로 새로운 Access Token을 발급받고 요청을 재시도합니다.
+- 사용자는 토큰 만료로 인해 갑자기 로그아웃되는 현상 없이, 끊김 없는 서비스 이용이 가능해집니다.

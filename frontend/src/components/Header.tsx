@@ -20,8 +20,7 @@ const Header: React.FC = () => {
         FairyLearn
       </Link>
       <nav className="flex items-center space-x-4">
-        
-        
+        <Link to="/shared" className="hover:text-primary">공유 게시판</Link>
         <Link to="/me/entitlements" className="hover:text-primary">내 권한</Link> {/* Added link to entitlements */}
         {isLoggedIn ? (
           <Button variant="ghost" size="sm" onClick={handleLogout}>

@@ -4,6 +4,7 @@ import StoriesList from '@/pages/StoriesList';
 import StoryDetail from '@/pages/StoryDetail';
 import NewStory from '@/pages/NewStory.tsx';
 import StorybookView from '@/pages/StorybookView.tsx';
+import SharedStoriesBoard from '@/pages/SharedStoriesBoard';
 
 
 import AuthCallback from '@/pages/AuthCallback';
@@ -34,6 +35,9 @@ function App() {
               <Route path="/stories/:id" element={<StoryDetail />} />
               <Route path="/storybook/:id" element={<StorybookView />} />
               <Route path="/stories/new" element={<NewStory />} />
+              <Route path="/shared" element={<SharedStoriesBoard />} />
+              <Route path="/shared/:slug" element={<StoryDetail />} />
+              <Route path="/shared/:slug/storybook" element={<StorybookView />} />
               
               
               
