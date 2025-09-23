@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 const Header: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
-  const { isLoggedIn, logout } = useAuth();
+  const { isLoggedIn, profile, logout } = useAuth();
 
   const handleLogout = () => {
     logout();
@@ -23,9 +23,14 @@ const Header: React.FC = () => {
         <Link to="/shared" className="hover:text-primary">공유 게시판</Link>
         <Link to="/me/entitlements" className="hover:text-primary">내 권한</Link> {/* Added link to entitlements */}
         {isLoggedIn ? (
-          <Button variant="ghost" size="sm" onClick={handleLogout}>
-            로그아웃
-          </Button>
+          <>
+            <span className="text-sm text-muted-foreground whitespace-nowrap">
+              {profile ? `${(profile.nickname || profile.email)}님 환영합니다!` : '로그인 중...'}
+            </span>
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              로그아웃
+            </Button>
+          </>
         ) : (
           <>
             <Link to="/login" className="hover:text-primary">로그인</Link>
