@@ -327,5 +327,21 @@ PROFILE/MOOD 반영, 영어 한 줄, 색감/구도/분위기 중심, 브랜드/�
 
 ## 3. 프론트엔드 (React) 수정
 - **`Login.tsx` 수정:**
-  - [ ] "카카오로 로그인" 버튼 UI 추가.
-  - [ ] 백엔드 카카오 로그인 URL (`/oauth2/authorization/kakao`)로 링크.
+- [ ] "카카오로 로그인" 버튼 UI 추가.
+- [ ] 백엔드 카카오 로그인 URL (`/oauth2/authorization/kakao`)로 링크.
+
+---
+
+# 신규 기능: 공유 스토리 좋아요/댓글 플로우
+
+## 1. DB 마이그레이션
+- [x] `shared_story_likes`, `shared_story_comments`, `shared_story_comment_likes` 테이블 추가 (필드/인덱스 포함)
+
+## 2. 백엔드
+- [x] 엔티티/레포지토리/서비스 구현 (좋아요 토글, 댓글 CRUD, 댓글 좋아요)
+- [x] `SharedStoryPublicController`에 좋아요/댓글 API 추가 (로그인 사용자만 허용)
+
+## 3. 프론트엔드
+- [x] `StoryDetail` 하단에 좋아요 & 댓글 UI 추가
+- [x] 댓글 수정/삭제/대댓글/좋아요 UX 구현 및 로딩/오류 상태 처리
+- [x] 비로그인 시 상호작용 차단 및 로그인 안내

@@ -12,6 +12,8 @@ interface SharedStorySummary {
     title: string;
     sharedAt: string;
     preview: string;
+    likeCount: number;
+    commentCount: number;
 }
 
 const SharedStoriesBoard: React.FC = () => {
@@ -31,7 +33,9 @@ const SharedStoriesBoard: React.FC = () => {
                 const normalized = data
                     .map(item => ({
                         ...item,
-                        shareSlug: item.shareSlug ?? (item as any).share_slug ?? ''
+                        shareSlug: item.shareSlug ?? (item as any).share_slug ?? '',
+                        likeCount: item.likeCount ?? (item as any).like_count ?? 0,
+                        commentCount: item.commentCount ?? (item as any).comment_count ?? 0,
                     }))
                     .filter(item => !!item.shareSlug);
                 setItems(normalized);
@@ -103,6 +107,14 @@ const SharedStoriesBoard: React.FC = () => {
                                 <p className="text-sm text-muted-foreground whitespace-pre-wrap mb-4">
                                     {item.preview || '프리뷰가 아직 준비되지 않았습니다.'}
                                 </p>
+                                <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+                                    <span className="flex items-center gap-1">
+                                        <span>❤</span> {item.likeCount}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                        <span>💬</span> {item.commentCount}
+                                    </span>
+                                </div>
                                 <Button onClick={() => navigate(`/shared/${item.shareSlug}`)}>
                                     동화 보기
                                 </Button>

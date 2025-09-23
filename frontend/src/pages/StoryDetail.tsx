@@ -9,6 +9,8 @@ import Select from '@/components/ui/FormControls/Select';
 import Meta from '@/lib/seo';
 import { useToast } from '@/components/ui/ToastProvider';
 import Modal from '@/components/ui/Modal';
+import { useAuth } from '@/contexts/AuthContext';
+import SharedStoryComments from '@/components/SharedStoryComments';
 
 interface StoryPageData {
     id?: number;
@@ -31,6 +33,8 @@ interface StoryDetailData {
     shareSlug?: string;
     sharedAt?: string;
     manageable?: boolean;
+    authorNickname?: string | null;
+    authorId?: number | null;
 }
 
 interface SharedStoryDetailResponse {
@@ -38,6 +42,9 @@ interface SharedStoryDetailResponse {
     title: string;
     shared_at: string;
     manageable: boolean;
+    like_count: number;
+    liked_by_current_user: boolean;
+    comment_count: number;
     story: any;
 }
 
@@ -54,6 +61,7 @@ const StoryDetail: React.FC = () => {
     const navigate = useNavigate();
     const { fetchWithErrorHandler } = useApi();
     const { addToast } = useToast();
+    const { isLoggedIn } = useAuth();
     const [story, setStory] = useState<StoryDetailData | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [isTranslating, setIsTranslating] = useState<boolean>(false);
@@ -65,6 +73,9 @@ const StoryDetail: React.FC = () => {
     const [error, setError] = useState<string>('');
     const [shareLink, setShareLink] = useState<string>('');
     const [isAudioVisible, setIsAudioVisible] = useState<boolean>(false);
+    const [storyLikeCount, setStoryLikeCount] = useState<number>(0);
+    const [storyLiked, setStoryLiked] = useState<boolean>(false);
+    const [commentCount, setCommentCount] = useState<number>(0);
     const isSharedView = Boolean(slug);
     const canManage = story?.manageable ?? !isSharedView;
     const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -101,6 +112,8 @@ const StoryDetail: React.FC = () => {
             shareSlug: raw.shareSlug ?? raw.share_slug,
             sharedAt: raw.sharedAt ?? raw.shared_at,
             manageable: raw.manageable,
+            authorNickname: raw.authorNickname ?? raw.author_nickname ?? null,
+            authorId: raw.authorId ?? raw.author_id ?? null,
         };
     };
 
@@ -123,6 +136,9 @@ const StoryDetail: React.FC = () => {
                     console.log('[StoryDetail] shared load success', normalized);
                     setStory(normalized);
                     setShareLink(`${window.location.origin}/shared/${data.share_slug}`);
+                    setStoryLikeCount(data.like_count ?? 0);
+                    setStoryLiked(data.liked_by_current_user ?? false);
+                    setCommentCount(data.comment_count ?? 0);
                 } else if (id) {
                     const raw = await fetchWithErrorHandler<any>(
                         `/stories/${id}`
@@ -136,6 +152,9 @@ const StoryDetail: React.FC = () => {
                     } else {
                         setShareLink('');
                     }
+                    setStoryLikeCount(0);
+                    setStoryLiked(false);
+                    setCommentCount(0);
                 }
             } catch (err) {
                 console.error('[StoryDetail] load error', err);
@@ -213,6 +232,34 @@ const StoryDetail: React.FC = () => {
         } finally {
             setIsCreatingStorybook(false);
         }
+    };
+
+    const handleToggleStoryLike = async () => {
+        const targetSlug = slug || story?.shareSlug;
+        if (!targetSlug) {
+            return;
+        }
+        if (!isLoggedIn) {
+            addToast('좋아요를 누르려면 로그인해 주세요.', 'info');
+            return;
+        }
+        try {
+            const response = await fetchWithErrorHandler<{ likeCount: number; liked: boolean }>(
+                `/public/shared-stories/${targetSlug}/likes`,
+                { method: 'POST' }
+            );
+            const likeCount = response.likeCount ?? (response as any).like_count ?? 0;
+            const liked = response.liked ?? (response as any).liked ?? false;
+            setStoryLikeCount(likeCount);
+            setStoryLiked(liked);
+        } catch (err) {
+            console.error('[StoryDetail] toggle like error', err);
+            addToast('좋아요 처리에 실패했습니다.', 'error');
+        }
+    };
+
+    const handleCommentCountChange = (count: number) => {
+        setCommentCount(count);
     };
 
     const ensureShareLink = () => {
@@ -388,6 +435,11 @@ const StoryDetail: React.FC = () => {
                 <Card className="max-w-2xl mx-auto">
                     <CardHeader>
                         <h1 className="text-2xl font-bold mb-2">{story.title}</h1>
+                        {story.authorNickname && (
+                            <p className="text-sm text-muted-foreground">
+                                작성자: {story.authorNickname}
+                            </p>
+                        )}
                         <p className="text-sm text-muted-foreground">
                             생성일: {new Date(story.createdAt).toLocaleString()} | 상태: {story.status}
                         </p>
@@ -405,7 +457,16 @@ const StoryDetail: React.FC = () => {
                             </p>
                         )}
                         {isSharedView && (
-                            <div className="mt-3 flex gap-2">
+                            <div className="mt-3 flex flex-wrap items-center gap-3">
+                                <button
+                                    type="button"
+                                    onClick={handleToggleStoryLike}
+                                    className={`flex items-center gap-2 text-sm font-medium transition-colors ${storyLiked ? 'text-red-500' : 'text-muted-foreground hover:text-red-500'}`}
+                                >
+                                    <span>{storyLiked ? '❤' : '🤍'}</span>
+                                    <span>{storyLikeCount}</span>
+                                </button>
+                                <span className="text-sm text-muted-foreground">댓글 {commentCount}개</span>
                                 <Button variant="outline" onClick={handleCopyShareLink}>
                                     공유 링크 복사
                                 </Button>
@@ -468,6 +529,18 @@ const StoryDetail: React.FC = () => {
                         </Button>
                     </CardFooter>
                 </Card>
+
+                {isSharedView && story.shareSlug && (
+                    <Card className="max-w-2xl mx-auto mt-6">
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <h2 className="text-xl font-semibold">댓글</h2>
+                            <span className="text-sm text-muted-foreground">{commentCount}개</span>
+                        </CardHeader>
+                        <CardContent>
+                            <SharedStoryComments slug={story.shareSlug} onCountChange={handleCommentCountChange} />
+                        </CardContent>
+                    </Card>
+                )}
 
                 <div className="flex justify-center space-x-4 mt-6">
                     {isSharedView ? (
