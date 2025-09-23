@@ -20,9 +20,9 @@ const Header: React.FC = () => {
         FairyLearn
       </Link>
       <nav className="flex items-center space-x-4">
-        <Link to="/me/entitlements" className="hover:text-primary">내 권한</Link> {/* Added link to entitlements */}
         {isLoggedIn ? (
           <>
+            <Link to="/me/profile" className="hover:text-primary">내 프로필</Link>
             <span className="text-sm text-muted-foreground whitespace-nowrap">
               {profile ? `${(profile.nickname || profile.email)}님 환영합니다!` : '로그인 중...'}
             </span>

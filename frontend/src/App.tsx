@@ -5,15 +5,9 @@ import StoryDetail from '@/pages/StoryDetail';
 import NewStory from '@/pages/NewStory.tsx';
 import StorybookView from '@/pages/StorybookView.tsx';
 import SharedStoriesBoard from '@/pages/SharedStoriesBoard';
-
-
 import AuthCallback from '@/pages/AuthCallback';
-
-
-
-
 import AdminAnalytics from '@/pages/AdminAnalytics';
-import MyEntitlements from '@/pages/MyEntitlements';
+import MyProfile from '@/pages/MyProfile';
 
 import Signup from '@/pages/Signup';
 import Login from '@/pages/Login';
@@ -46,7 +40,7 @@ function App() {
               
               
               <Route path="/admin/analytics" element={<AdminAnalytics />} />
-              <Route path="/me/entitlements" element={<MyEntitlements />} />
+              <Route path="/me/profile" element={<MyProfile />} />
               
               <Route path="/signup" element={<Signup />} />
               <Route path="/login" element={<Login />} />
