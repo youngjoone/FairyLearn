@@ -41,7 +41,7 @@ const NewStory: React.FC = () => {
     const [ageRange, setAgeRange] = useState<string>('');
     const [topics, setTopics] = useState<string[]>([]);
     const [objectives, setObjectives] = useState<string[]>([]);
-    const [minPages, setMinPages] = useState<number>(4);
+    const [minPages, setMinPages] = useState<number>(10);
     const [language, setLanguage] = useState<string>('KO');
     const [title, setTitle] = useState<string>(''); // Optional title
 
@@ -235,8 +235,8 @@ const NewStory: React.FC = () => {
                                 <input
                                     id="minPages"
                                     type="range"
-                                    min="4"
-                                    max="8"
+                                    min="10"
+                                    max="20"
                                     value={minPages}
                                     onChange={(e) => setMinPages(Number(e.target.value))}
                                     className="mt-1 block w-full"

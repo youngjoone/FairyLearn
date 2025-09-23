@@ -27,7 +27,7 @@ const Home: React.FC = () => {
         ageRange: "4-5",
         topics: ["SCIENCE"],
         objectives: ["counting"],
-        minPages: 4,
+        minPages: 10,
         language: "KO"
       };
       const response = await fetchWithErrorHandler('http://localhost:8080/api/stories', {
