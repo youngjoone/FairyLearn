@@ -17,6 +17,16 @@ interface StorageQuota {
     used: number;
 }
 
+interface CharacterProfile {
+    id: number;
+    slug: string;
+    name: string;
+    persona?: string | null;
+    catchphrase?: string | null;
+    promptKeywords?: string | null;
+    imagePath?: string | null;
+}
+
 const ageRanges = ['4-5', '6-7', '8-9'];
 const topicsOptions = [
     { value: '공룡', label: '공룡' },
@@ -50,6 +60,20 @@ const NewStory: React.FC = () => {
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
     const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
 
+    const [characters, setCharacters] = useState<CharacterProfile[]>([]);
+    const [selectedCharacterIds, setSelectedCharacterIds] = useState<number[]>([]);
+    const [isLoadingCharacters, setIsLoadingCharacters] = useState<boolean>(false);
+
+    const buildAssetUrl = (path?: string | null): string | null => {
+        if (!path) return null;
+        if (/^https?:\/\//i.test(path)) {
+            return path;
+        }
+        const backendBase = (import.meta.env.VITE_BACKEND_BASE_URL as string | undefined)?.replace(/\/$/, '') || 'http://localhost:8080';
+        const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+        return `${backendBase}${normalizedPath}`;
+    };
+
     useEffect(() => {
         const token = getAccess();
         if (!token) {
@@ -69,7 +93,29 @@ const NewStory: React.FC = () => {
                 setIsLoadingQuota(false);
             }
         };
+        const fetchCharacters = async () => {
+            setIsLoadingCharacters(true);
+            try {
+                const list = await fetchWithErrorHandler<CharacterProfile[]>('/public/characters');
+                const normalized = list.map((character: any) => ({
+                    id: character.id,
+                    slug: character.slug,
+                    name: character.name,
+                    persona: character.persona ?? null,
+                    catchphrase: character.catchphrase ?? null,
+                    promptKeywords: character.promptKeywords ?? character.prompt_keywords ?? null,
+                    imagePath: character.imagePath ?? character.image_path ?? null,
+                }));
+                setCharacters(normalized);
+            } catch (err) {
+                console.error('캐릭터 목록 불러오기 실패', err);
+                addToast(`캐릭터 목록을 불러오지 못했어요: ${err instanceof Error ? err.message : String(err)}`, 'error');
+            } finally {
+                setIsLoadingCharacters(false);
+            }
+        };
         fetchQuota();
+        fetchCharacters();
     }, [fetchWithErrorHandler, addToast, navigate]);
 
     const validateForm = () => {
@@ -79,6 +125,19 @@ const NewStory: React.FC = () => {
         if (objectives.length === 0) errors.objectives = '목표를 1개 이상 선택해주세요.';
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
+    };
+
+    const toggleCharacterSelection = (characterId: number) => {
+        setSelectedCharacterIds(prev => {
+            if (prev.includes(characterId)) {
+                return prev.filter(id => id !== characterId);
+            }
+            if (prev.length >= 2) {
+                addToast('캐릭터는 최대 2명까지 선택할 수 있어요.', 'error');
+                return prev;
+            }
+            return [...prev, characterId];
+        });
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -97,6 +156,7 @@ const NewStory: React.FC = () => {
                 objectives,
                 minPages,
                 language,
+                characterIds: selectedCharacterIds,
             };
 
             const response = await fetchWithErrorHandler<{ id: number }>('http://localhost:8080/api/stories', {
@@ -163,6 +223,64 @@ const NewStory: React.FC = () => {
                                     onChange={(e) => setTitle(e.target.value)}
                                     className="mt-1 block w-full"
                                 />
+                            </div>
+
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="block text-sm font-medium text-gray-700">캐릭터 선택 (최대 2명)</span>
+                                    <span className="text-xs text-gray-500">{selectedCharacterIds.length}/2 선택됨</span>
+                                </div>
+                                {isLoadingCharacters ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <Skeleton className="h-32 w-full" />
+                                        <Skeleton className="h-32 w-full" />
+                                    </div>
+                                ) : characters.length === 0 ? (
+                                    <div className="p-3 border border-dashed rounded-md text-sm text-gray-500">
+                                        준비된 캐릭터가 없습니다. 잠시 후 다시 시도해주세요.
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {characters.map(character => {
+                                            const isSelected = selectedCharacterIds.includes(character.id);
+                                            const imageUrl = buildAssetUrl(character.imagePath);
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    key={character.id}
+                                                    onClick={() => toggleCharacterSelection(character.id)}
+                                                    className={`group relative text-left border rounded-lg p-3 transition ${isSelected ? 'border-blue-500 bg-blue-50/80 ring-1 ring-blue-200' : 'border-gray-200 hover:border-blue-400/70'}`}
+                                                >
+                                                    {isSelected && (
+                                                        <span className="absolute top-2 right-2 text-xs font-medium text-blue-600">선택됨</span>
+                                                    )}
+                                                    <div className="flex gap-3 items-start">
+                                                        {imageUrl ? (
+                                                            <img
+                                                                src={imageUrl}
+                                                                alt={`${character.name} 이미지`}
+                                                                className="w-20 h-20 rounded-md object-cover border border-gray-200"
+                                                                loading="lazy"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-20 h-20 rounded-md bg-gray-100 border border-dashed flex items-center justify-center text-xs text-gray-400">이미지 준비중</div>
+                                                        )}
+                                                        <div className="flex-1">
+                                                            <p className="font-semibold text-gray-900">{character.name}</p>
+                                                            {character.persona && (
+                                                                <p className="text-sm text-gray-600 mt-1 leading-snug">{character.persona}</p>
+                                                            )}
+                                                            {character.catchphrase && (
+                                                                <p className="text-sm text-blue-600 mt-1 leading-snug">{character.catchphrase}</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
 
                             <div>

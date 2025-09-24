@@ -18,6 +18,16 @@ interface StoryPageData {
     text: string;
 }
 
+interface StoryCharacter {
+    id: number;
+    slug: string;
+    name: string;
+    persona?: string | null;
+    catchphrase?: string | null;
+    promptKeywords?: string | null;
+    imagePath?: string | null;
+}
+
 interface StoryDetailData {
     id: number;
     title: string;
@@ -30,6 +40,7 @@ interface StoryDetailData {
     pages: StoryPageData[];
     quiz?: { q: string; a: string }[];
     fullAudioUrl?: string;
+    characters?: StoryCharacter[];
     shareSlug?: string;
     sharedAt?: string;
     manageable?: boolean;
@@ -76,6 +87,16 @@ const StoryDetail: React.FC = () => {
     const [storyLikeCount, setStoryLikeCount] = useState<number>(0);
     const [storyLiked, setStoryLiked] = useState<boolean>(false);
     const [commentCount, setCommentCount] = useState<number>(0);
+    const buildAssetUrl = (path?: string | null): string | null => {
+        if (!path) return null;
+        if (/^https?:\/\//i.test(path)) {
+            return path;
+        }
+        const backendBase = (import.meta.env.VITE_BACKEND_BASE_URL as string | undefined)?.replace(/\/$/, '') || 'http://localhost:8080';
+        const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+        return `${backendBase}${normalizedPath}`;
+    };
+
     const isSharedView = Boolean(slug);
     const canManage = story?.manageable ?? !isSharedView;
     const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -97,6 +118,18 @@ const StoryDetail: React.FC = () => {
             text: page.text ?? '',
         }));
 
+        const characters: StoryCharacter[] = Array.isArray(raw.characters)
+            ? (raw.characters as any[]).map(character => ({
+                  id: character.id,
+                  slug: character.slug,
+                  name: character.name,
+                  persona: character.persona ?? null,
+                  catchphrase: character.catchphrase ?? null,
+                  promptKeywords: character.promptKeywords ?? character.prompt_keywords ?? null,
+                  imagePath: character.imagePath ?? character.image_path ?? null,
+              }))
+            : [];
+
         return {
             id: raw.id,
             title: raw.title,
@@ -109,6 +142,7 @@ const StoryDetail: React.FC = () => {
             pages,
             quiz: raw.quiz,
             fullAudioUrl: raw.fullAudioUrl ?? raw.full_audio_url,
+            characters,
             shareSlug: raw.shareSlug ?? raw.share_slug,
             sharedAt: raw.sharedAt ?? raw.shared_at,
             manageable: raw.manageable,
@@ -474,6 +508,44 @@ const StoryDetail: React.FC = () => {
                         )}
                     </CardHeader>
                     <CardContent>
+                        {story.characters && story.characters.length > 0 && (
+                            <div className="mb-6">
+                                <h2 className="text-lg font-semibold mb-2">등장 캐릭터</h2>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {story.characters.map(character => {
+                                        const imageUrl = buildAssetUrl(character.imagePath);
+                                        return (
+                                            <div
+                                                key={character.id}
+                                                className="flex gap-3 border border-gray-200 rounded-lg p-3 bg-gray-50/80"
+                                            >
+                                                {imageUrl ? (
+                                                    <img
+                                                        src={imageUrl}
+                                                        alt={`${character.name} 이미지`}
+                                                        className="w-16 h-16 rounded-md object-cover border border-gray-200"
+                                                        loading="lazy"
+                                                    />
+                                                ) : (
+                                                    <div className="w-16 h-16 rounded-md bg-gray-100 border border-dashed flex items-center justify-center text-xs text-gray-400">이미지 준비중</div>
+                                                )}
+                                                <div className="flex-1">
+                                                    <p className="font-semibold text-gray-900">{character.name}</p>
+                                                    {character.persona && (
+                                                        <p className="text-sm text-gray-600 mt-1 leading-snug">{character.persona}</p>
+                                                    )}
+                                                    {character.catchphrase && (
+                                                        <p className="text-sm text-blue-600 mt-1 leading-snug">{character.catchphrase}</p>
+                                                    )}
+                                                    
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
                         {isAudioVisible && story.fullAudioUrl && (
                             <div className="mb-4">
                                 <audio
