@@ -43,6 +43,14 @@
 - [ ] **파일 저장:** 생성된 오디오 파일(mp3)을 지정된 경로(`/Users/kyj/testaudiodir/`)에 고유한 파일명으로 저장.
 - [ ] **응답:** 저장된 파일명을 Spring Boot 백엔드에 반환.
 
+### 2-1. Azure TTS 전환 계획
+- [ ] **환경 설정:** `ai-python/config.py`에 `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `USE_AZURE_TTS`를 추가하고 `.env`/환경변수로부터 주입되도록 처리.
+- [ ] **의존성:** `ai-python/requirements.txt`에 Azure Speech SDK 추가 후 가상환경/배포 스크립트 갱신.
+- [ ] **Azure 클라이언트:** `ai-python/service/azure_tts_client.py`를 새로 만들어 SSML 입력을 받아 Azure에서 오디오 바이트를 반환하도록 구현.
+- [ ] **SSML 빌더:** `plan_reading_segments` 출력 기반으로 `<speak>/<voice>`/`<mstts:express-as>`를 생성하고 캐릭터 말투 매핑(마이그레이션에 있는 slug/말버릇 사용) 반영.
+- [ ] **분기 처리:** `OpenAIClient.synthesize_story_audio`에서 `Config.USE_AZURE_TTS`가 켜지면 Azure 경로로 보내고, 실패 시 기존 OpenAI 세그먼트 합성으로 폴백.
+- [ ] **검증:** 샘플 동화로 Azure 합성 결과가 `/Users/kyj/testaudiodir`에 저장되고, 기존 DB 매핑/백엔드 플로우가 그대로 동작하는지 테스트.
+
 ### 3. 프론트엔드 (React)
 - [ ] **페이지:** `StoryDetail.tsx` 페이지 수정.
 - [ ] **데이터 조회:** 페이지 로드 시 가져오는 `story` 객체에 `fullAudioUrl`이 포함되어 있는지 확인.
