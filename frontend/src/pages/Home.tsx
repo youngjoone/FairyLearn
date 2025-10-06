@@ -1,58 +1,43 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 
-
 import useApi from '@/hooks/useApi';
 import Meta from '@/lib/seo';
 
+type AiHealthResponse = {
+  healthy: boolean;
+  backendStatus: string;
+  aiServiceStatus: string;
+  aiServiceResponse?: unknown;
+  aiServiceError?: string;
+};
+
 const Home: React.FC = () => {
   const { fetchWithErrorHandler } = useApi();
-  const [healthStatus, setHealthStatus] = useState<string>('');
-  
-  
-  
-  
+  const [backendStatusText, setBackendStatusText] = useState<string>('');
+  const [healthStatus, setHealthStatus] = useState<AiHealthResponse | null>(null);
+  const [healthError, setHealthError] = useState<string>('');
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
 
-  
-
-  
-
-  
-
-  
-
-  const handleGenerateStory = async () => {
+  const handleCheckHealth = async () => {
+    setIsCheckingHealth(true);
+    setBackendStatusText('');
+    setHealthStatus(null);
+    setHealthError('');
     try {
-      const requestBody = {
-        ageRange: "4-5",
-        topics: ["SCIENCE"],
-        objectives: ["counting"],
-        minPages: 10,
-        language: "KO"
-      };
-      const response = await fetchWithErrorHandler('http://localhost:8080/api/stories', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
-      console.log('Story generation response:', response);
-      alert('동화 생성 요청을 보냈습니다. 콘솔을 확인하세요.');
-    } catch (error) {
-      console.error('Story generation failed:', error);
-      alert('동화 생성 요청 실패. 콘솔을 확인하세요.');
-    }
-  };
+      const backendHealth = await fetchWithErrorHandler<{ status: string }>('/health');
+      setBackendStatusText(backendHealth.status ?? 'unknown');
 
-  const handleGetHealth = async () => {
-    try {
-      const data = await fetchWithErrorHandler<{ status: string }>(
-        'http://localhost:8080/api/health'
-      );
-      setHealthStatus(JSON.stringify(data));
+      const aiHealth = await fetchWithErrorHandler<AiHealthResponse>('/health/ai');
+      setHealthStatus(aiHealth);
+      if (!aiHealth.healthy && aiHealth.aiServiceError) {
+        setHealthError(aiHealth.aiServiceError);
+      }
     } catch (error) {
-      setHealthStatus('백엔드 상태를 확인하는데 실패했습니다.');
+      const message = error instanceof Error ? error.message : String(error);
+      setHealthError(`헬스 체크 실패: ${message}`);
+    } finally {
+      setIsCheckingHealth(false);
     }
   };
 
@@ -76,13 +61,32 @@ const Home: React.FC = () => {
         
         <hr />
         <div>
-          <h2>E2E 테스트</h2>
-          <div>
-            <button onClick={handleGenerateStory}>AI 동화 생성</button>
-          </div>
+          <h2>연결 상태 확인</h2>
           <div style={{ marginTop: '20px' }}>
-            <button onClick={handleGetHealth}>백엔드 상태 확인</button>
-            {healthStatus && <p><strong>응답:</strong> {healthStatus}</p>}
+            <button onClick={handleCheckHealth} disabled={isCheckingHealth}>
+              {isCheckingHealth ? '확인 중...' : 'AI 서비스 연결 상태 확인'}
+            </button>
+            {backendStatusText && (
+              <p style={{ marginTop: '12px' }}>
+                <strong>백엔드:</strong> {backendStatusText}
+              </p>
+            )}
+            {healthStatus && (
+              <div style={{ marginTop: '12px' }}>
+                <p><strong>전체 상태:</strong> {healthStatus.healthy ? '정상' : '이상'}</p>
+                <p><strong>AI 서비스:</strong> {healthStatus.aiServiceStatus}</p>
+                {'aiServiceResponse' in healthStatus && healthStatus.aiServiceResponse && (
+                  <pre style={{ background: '#f5f5f5', padding: '8px', overflowX: 'auto' }}>
+                    {JSON.stringify(healthStatus.aiServiceResponse, null, 2)}
+                  </pre>
+                )}
+              </div>
+            )}
+            {healthError && (
+              <p style={{ marginTop: '12px', color: 'red' }}>
+                <strong>오류:</strong> {healthError}
+              </p>
+            )}
           </div>
         </div>
       </div>

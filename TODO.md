@@ -101,6 +101,10 @@
 
 * [ ] FastAPI 스켈레톤 + pydantic 스키마
 * [ ] Gemini 호출 유틸(키 주입, 타임아웃, 재시도)
+* [ ] 이미지 프로바이더 추상화(`OpenAIImageProvider` vs `GeminiImageProvider`)
+* [ ] Gemini 2.5 Flash Image 응답 파싱/후처리(OpenAI 경로와 동일한 PNG 저장 유지)
+* [ ] FastAPI `/ai/generate-image`에서 Gemini 전환 플래그 처리 및 로깅/에러 매핑 보강
+* [ ] 로컬 스모크 테스트 스크립트 또는 절차 정리(OpenAI/Gemini 선택 토글 포함)
 * [ ] 프롬프트 템플릿(테스트 문항/채점/시/이미지 프롬프트)
 * [ ] 출력 검증(JSON only 강제 프롬프트 + `jsonschema` 검증)
 * [ ] 안전필터(금칙어, 길이 제한, 민감주제 가드)
