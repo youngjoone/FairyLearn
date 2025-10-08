@@ -84,3 +84,41 @@
 - 로그인 방식(이메일, 소셜)에 관계없이 모든 사용자가 Refresh Token을 보유하게 됩니다.
 - Access Token이 만료되어 API 요청이 401 에러를 반환하더라도, `useApi.ts`의 인터셉터가 Refresh Token을 사용하여 자동으로 새로운 Access Token을 발급받고 요청을 재시도합니다.
 - 사용자는 토큰 만료로 인해 갑자기 로그아웃되는 현상 없이, 끊김 없는 서비스 이용이 가능해집니다.
+---
+
+# 대규모 리팩토링: 서비스 모듈 분리 및 LLM 호출 최적화
+
+## 1. 목표
+- **관심사 분리**: 단일 클라이언트 구조를 `text`, `image`, `audio` 기능별 서비스로 분리하여 코드의 결합도를 낮추고 유지보수성을 향상시킵니다.
+- **성능 및 비용 최적화**: 동화 텍스트 생성과 오디오 읽기 계획 생성을 하나의 LLM 호출로 통합하여, API 호출 횟수를 2회에서 1회로 줄입니다.
+
+## 2. 신규 아키텍처
+- `ai-python/service/text_service.py`: **(LLM 호출 O)** 텍스트 생성 및 **오디오 읽기 계획 생성** 전담
+- `ai-python/service/image_service.py`: **(LLM 호출 O)** 이미지 생성 전담
+- `ai-python/service/audio_service.py`: **(LLM 호출 X)** 미리 생성된 계획에 따라 TTS만 수행
+
+## 3. 단계별 실행 계획
+
+### 1단계: 스키마 및 프롬프트 통합 수정
+- [ ] **`schemas.py` 수정**: `GenerateResponse` 또는 `StoryOutput` Pydantic 모델에 `reading_plan: List[dict]` 와 같은 필드를 추가하여, 텍스트 생성 결과에 오디오 계획이 포함될 수 있는 구조를 마련합니다.
+- [ ] **프롬프트 수정**: `text_service.py`에서 사용할 프롬프트를 수정하여, Gemini(또는 OpenAI)가 동화 텍스트와 **동시에** 오디오 읽기 계획(세그먼트, 화자, 감정 등)을 함께 생성하도록 요청합니다. JSON 출력 스키마에 대한 설명도 이 변경사항을 반영하여 업데이트합니다.
+
+### 2단계: `text_service.py` 구현
+- [ ] `ai-python/service/text_service.py` 파일을 생성합니다.
+- [ ] 1단계에서 수정한 통합 프롬프트를 사용하여 LLM을 호출하고, 동화 텍스트와 오디오 읽기 계획이 모두 포함된 단일 JSON 응답을 받는 `generate_story_with_plan(req, id)` 함수를 구현합니다.
+- [ ] 이 함수는 내부적으로 `Config.LLM_PROVIDER` 설정에 따라 Gemini 또는 OpenAI를 선택하여 호출합니다.
+- [ ] `main.py`의 `/ai/generate` 엔드포인트가 이 새로운 함수를 호출하도록 수정하고, 반환된 결과(텍스트 + 오디오 계획)를 Spring Boot 백엔드로 전달하도록 합니다.
+
+### 3단계: `audio_service.py` 구현 (LLM 호출 제거)
+- [ ] `ai-python/service/audio_service.py` 파일을 생성합니다.
+- [ ] 이 서비스는 더 이상 LLM을 호출하지 않으므로, `plan_reading_segments`와 같은 함수는 **삭제**합니다.
+- [ ] `synthesize_story_from_plan(plan: List[dict])`과 같은 함수를 구현합니다. 이 함수는 인자로 '오디오 읽기 계획'을 직접 받아, Azure TTS 또는 OpenAI TTS를 통해 오디오 파일을 합성하는 역할만 수행합니다.
+- [ ] `main.py`의 `/ai/generate-audio` 엔드포인트가 이 함수를 호출하도록 수정합니다. 이 때, 요청 본문(request body)에 오디오 계획 데이터가 포함되어야 합니다.
+
+### 4단계: `image_service.py` 구현
+- [ ] `ai-python/service/image_service.py` 파일을 생성합니다.
+- [ ] 기존 `openai_client.py`의 이미지 생성 로직을 이 파일로 이전하고, `generate_image(req, id)` 함수를 구현합니다.
+- [ ] `main.py`의 `/ai/generate-image` 엔드포인트가 이 함수를 호출하도록 수정합니다.
+
+### 5단계: 기존 클라이언트 파일 정리
+- [ ] 모든 기능이 각 서비스 파일로 성공적으로 이전된 것을 확인한 후, 더 이상 필요 없어진 `openai_client.py`와 `gemini_client.py` 파일을 삭제하여 리팩토링을 완료합니다.
