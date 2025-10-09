@@ -122,3 +122,14 @@
 
 ### 5단계: 기존 클라이언트 파일 정리
 - [ ] 모든 기능이 각 서비스 파일로 성공적으로 이전된 것을 확인한 후, 더 이상 필요 없어진 `openai_client.py`와 `gemini_client.py` 파일을 삭제하여 리팩토링을 완료합니다.
+
+### 6단계: ImagenImageProvider 구현 및 연동
+- **목표**: Google의 `Imagen` 모델을 사용하여 이미지 생성을 정상적으로 처리하고, `config.py` 설정을 통해 OpenAI의 `DALL-E`와 쉽게 전환할 수 있도록 구현합니다.
+- **세부 작업**:
+  - [ ] **`image_providers.py` 수정**:
+    - `Imagen` 모델의 Vertex AI 엔드포인트를 호출하는 새로운 `ImagenImageProvider` 클래스를 구현합니다.
+    - 이 클래스는 `Imagen` API의 요청/응답 JSON 구조에 맞게 데이터를 처리합니다.
+  - [ ] **`image_service.py` 수정**:
+    - `USE_GEMINI_IMAGE` 설정이 `True`일 때, 기존 `GeminiImageProvider` 대신 새로 만든 `ImagenImageProvider`를 사용하도록 로직을 수정합니다.
+  - [ ] **`config.py` 수정**:
+    - `DEFAULT_USE_GEMINI_IMAGE` 값을 다시 `True`로 되돌려, 기본적으로 `Imagen` 모델을 사용하도록 설정을 복원합니다.
