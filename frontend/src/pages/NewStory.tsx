@@ -34,12 +34,30 @@ const topicsOptions = [
     { value: '숲', label: '숲' },
     { value: '바다', label: '바다' },
     { value: '로봇', label: '로봇' },
+    { value: '마법', label: '마법' },
+    { value: '모험', label: '모험' },
+    { value: '동물 친구들', label: '동물 친구들' },
+    { value: '계절 이야기', label: '계절 이야기' },
+    { value: '음악', label: '음악' },
+    { value: '스포츠', label: '스포츠' },
+    { value: '여행', label: '여행' },
+    { value: '환경 보호', label: '환경 보호' },
+    { value: '과일과 음식', label: '과일과 음식' },
+    { value: '시간 여행', label: '시간 여행' },
 ];
 const objectivesOptions = [
     { value: '과학', label: '과학' },
     { value: '영어', label: '영어' },
     { value: '수학', label: '수학' },
     { value: '예절', label: '예절' },
+    { value: '협동', label: '협동' },
+    { value: '문제 해결', label: '문제 해결' },
+    { value: '공감', label: '공감' },
+    { value: '감정 표현', label: '감정 표현' },
+    { value: '창의력', label: '창의력' },
+    { value: '환경 의식', label: '환경 의식' },
+    { value: '세계 문화', label: '세계 문화' },
+    { value: '자기 돌봄', label: '자기 돌봄' },
 ];
 const languages = [{ value: 'KO', label: '한국어' }, { value: 'EN', label: 'English' }];
 
