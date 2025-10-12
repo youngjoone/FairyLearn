@@ -133,3 +133,50 @@
     - `USE_GEMINI_IMAGE` 설정이 `True`일 때, 기존 `GeminiImageProvider` 대신 새로 만든 `ImagenImageProvider`를 사용하도록 로직을 수정합니다.
   - [ ] **`config.py` 수정**:
     - `DEFAULT_USE_GEMINI_IMAGE` 값을 다시 `True`로 되돌려, 기본적으로 `Imagen` 모델을 사용하도록 설정을 복원합니다.
+
+---
+
+# 신규 아키텍처: 페이지별 에셋(이미지/오디오) 생성 시스템
+
+## 1. 목표
+- **사용자 경험(UX) 향상:** 전체 동화 생성을 기다릴 필요 없이, 페이지 단위로 이미지와 오디오를 즉시 생성하고 소비하여 사용자의 대기 시간을 최소화합니다.
+- **품질 유지 및 개선:** 페이지별 오디오 생성으로 API 제약(예: Azure TTS 50 세그먼트 제한)을 회피하고, 더욱 상세하고 표현력 풍부한 '오디오 연출 계획(`reading_plan`)'을 적용하여 오디오 품질을 극대화합니다.
+- **시스템 안정성 확보:** 자원 소모가 큰 전체 동화 단위의 작업을 페이지 단위의 작은 작업으로 분산하여 시스템 부하를 줄이고 안정성을 높입니다.
+
+## 2. 핵심 요구사항
+- 각 페이지의 오디오는 단순한 텍스트 읽기를 넘어, 문맥에 맞는 감정과 화자(캐릭터)의 목소리 톤을 반영하여 사람이 직접 읽어주는 듯한 높은 품질을 유지해야 합니다.
+
+## 3. 구현 계획
+
+### 1단계: 데이터베이스 및 백엔드(Spring Boot) 수정
+- **[ ] DB 스키마 변경:**
+  - `StoryPage` 엔티티(`StoryPage.java`)에 `audioUrl` 및 `imageUrl` 컬럼을 추가합니다.
+  - 신규 마이그레이션 스크립트(예: `V24__add_assets_to_story_pages.sql`)를 작성하여 `story_pages` 테이블에 `audio_url`, `image_url` 컬럼을 추가합니다.
+  - `stories` 테이블의 `full_audio_url`, `reading_plan` 등 이제는 필요 없어진 컬럼을 제거하는 마이그레이션을 진행합니다.
+- **[ ] 신규 API 엔드포인트 생성:**
+  - `StoryController.java`에 특정 페이지의 에셋(이미지, 오디오)을 생성하고 조회하는 API를 구현합니다.
+  - **엔드포인트 예시:** `POST /api/stories/{storyId}/pages/{pageNo}/assets`
+- **[ ] `StoryService.java` 로직 수정:**
+  - `generateAssetsForPage(storyId, pageNo)`와 같은 신규 서비스 메소드를 구현합니다.
+  - **로직 상세:**
+    1. `storyId`와 `pageNo`로 `StoryPage` 엔티티를 조회합니다.
+    2. 페이지 텍스트, 캐릭터 정보 등을 `ai-python` 서비스의 신규 API(아래 참고)로 전달하여 이미지와 오디오 생성을 동시에 요청합니다.
+    3. 응답으로 받은 `imageUrl`과 `audioUrl`을 `StoryPage` 엔티티에 업데이트하고 저장합니다.
+
+### 2단계: AI 서비스(Python) 수정
+- **[ ] 신규 통합 API 엔드포인트 생성:**
+  - `main.py`에 페이지 단위 에셋 생성을 위한 `POST /ai/generate-page-assets` API를 구현합니다.
+  - **요청 본문:** `{ "text": "페이지 텍스트", "characters": [...], "art_style": "..." }`
+- **[ ] 병렬 처리 로직 구현:**
+  - 해당 엔드포인트는 `asyncio.gather`를 사용하여 `image_service.generate_image`와 `audio_service.plan_and_synthesize_audio`를 **병렬로 동시 호출**하여 처리 시간을 단축합니다.
+  - `audio_service.py`에는 페이지 텍스트를 받아 `reading_plan` 생성과 TTS 합성을 순차적으로 처리하는 `plan_and_synthesize_audio` 헬퍼 함수를 구현합니다.
+  - **응답:** `{ "imageUrl": "...", "audioUrl": "..." }` 형태로 두 결과물의 URL을 함께 반환합니다.
+
+### 3단계: 프론트엔드(React) 수정
+- **[ ] UI/UX 변경:**
+  - 동화책을 보는 `StorybookView.tsx`와 같은 컴포넌트에서, 전체 동화를 읽는 버튼을 제거합니다.
+  - 대신 각 페이지 내부에 '이 페이지 듣기' (재생/정지) 버튼과 이미지를 표시할 영역을 마련합니다.
+- **[ ] API 호출 로직 변경:**
+  - 사용자가 페이지를 넘길 때, 해당 페이지의 `imageUrl`과 `audioUrl`이 있는지 확인합니다.
+  - 정보가 없다면, 로딩 상태를 표시하고 백엔드의 신규 API(`.../assets`)를 호출하여 생성을 요청합니다.
+  - API 응답으로 URL들을 받으면, 상태를 업데이트하여 이미지와 오디오 플레이어를 렌더링합니다.
