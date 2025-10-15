@@ -17,6 +17,7 @@ master/
 config.json
 settings.json
 credentials.json
+temp_image/
 
 # === Node / Frontend ===
 node_modules/
