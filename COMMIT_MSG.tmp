@@ -1,8 +1,0 @@
-feat: 네이버 소셜 로그인 기능 구현
-
-- Spring Security OAuth2 클라이언트를 사용하여 네이버 로그인 연동
-- `application-local.yml`에 네이버 OAuth2 설정 추가
-- `CustomOAuth2UserService` 및 `OAuthAttributes`를 구현하여 네이버 사용자 정보 처리
-- `User` 엔티티를 리팩토링하여 소셜/일반 로그인 모두 지원
-- 데이터베이스 스키마 변경을 위한 Flyway 마이그레이션 스크립트 추가 (V15, V16, V17)
-- 프론트엔드 `Login` 페이지에 네이버 로그인 버튼 추가

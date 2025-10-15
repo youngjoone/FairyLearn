@@ -1,3 +1,81 @@
+--- Context from: ../.gemini/GEMINI.md ---
+## Gemini Added Memories
+- ## 구글 소셜 로그인 기능 추가 (Google Social Login)
+
+### 1. Google Cloud Platform 설정
+- [ ] Google Cloud Console에서 OAuth 2.0 클라이언트 ID 생성
+- [ ] **클라이언트 ID** 및 **클라이언트 보안 비밀** 확보
+- [ ] 승인된 리디렉션 URI 추가: `http://localhost:8080/login/oauth2/code/google`
+
+### 2. 백엔드 (Spring Boot) 수정
+- **파일**: `backend/src/main/resources/application.yml`
+  - [ ] `spring.security.oauth2.client.registration.google` 설정 추가 (클라이언트 ID, 보안 비밀 등)
+- **파일**: `backend/src/main/java/com/fairylearn/backend/auth/OAuthAttributes.java`
+  - [ ] `of()` 메소드에 `google` case 추가하여 구글 사용자 정보 매핑 로직 구현
+- **파일**: `backend/src/main/java/com/fairylearn/backend/config/SecurityConfig.java`
+  - [ ] `.oauth2Login()` 설정 검토 및 필요시 수정
+- **파일**: `backend/src/main/java/com/fairylearn/backend/auth/OAuth2SuccessHandler.java`
+  - [ ] 로그인 성공 후 프론트엔드 콜백 URL (`/auth/callback`)로 정상적으로 리디렉션 되는지 확인
+
+### 3. 프론트엔드 (React) 수정
+- [ ] **파일**: `frontend/src/pages/Login.tsx`
+  - [ ] "Google로 로그인" 버튼 UI 추가
+  - [ ] 버튼 클릭 시 백엔드 로그인 URL (`/oauth2/authorization/google`)로 이동하는 링크 구현
+- [ ] **파일**: `frontend/src/pages/AuthCallback.tsx`
+  - [ ] URL 쿼리 파라미터에서 JWT 토큰 추출하는 로직 구현
+  - [ ] 추출한 토큰을 `localStorage`에 저장
+- [ ] **파일**: `frontend/src/contexts/AuthContext.tsx`
+  - [ ] 토큰 저장 후, 사용자 인증 상태를 전역적으로 업데이트하는 로직 호출
+
+---
+
+# 구글 소셜 로그인 개발 회고 및 재시도 계획
+
+이번 구글 소셜 로그인 개발 과정에서 여러 문제가 발생하여, 원점에서 다시 시작하기로 결정했습니다. 아래는 문제점 요약 및 향후 권장되는 개발 계획입니다.
+- FairyLearn 프로젝트 리팩토링 계획: 현재의 순차적 AI 호출 방식을, 1단계로 텍스트 스트리밍을 구현하고 2단계로 그림/음성 생성을 병렬화하는 '실시간 스트리밍 및 병렬 처리' 아키텍처로 변경하는 것을 목표로 함.
+
+## 문제점 요약
+
+1.  **인증 객체 타입 불일치 (`ClassCastException`)**: 구글(OIDC)과 네이버(OAuth2)는 로그인 후 생성하는 Spring Security의 Principal 객체 타입이 다릅니다. 이로 인해 `OAuth2SuccessHandler`에서 객체 변환 예외가 발생했습니다.
+2.  **DB 트랜잭션 경합 (`UsernameNotFoundException`)**: 로그인으로 사용자가 DB에 저장되는 트랜잭션이 끝나기 전에, 후속 API 요청에서 해당 사용자를 조회하려다 실패하는 경합 상태가 지속적으로 발생했습니다. `@Transactional` 어노테이션만으로는 해결되지 않았습니다.
+3.  **잘못된 리팩토링으로 인한 부작용**:
+    *   경합 문제를 해결하기 위해 `JwtAuthFilter`에서 DB 조회를 없애고 Principal을 `String`으로 변경했으나, 컨트롤러는 `User` 객체를 기대하고 있어 `NullPointerException`이 발생했습니다.
+    *   `JwtProvider`의 메소드 시그니처를 변경하면서, 기존 `AuthController`의 코드와 호환성이 깨져 컴파일 에러가 발생했습니다.
+
+## 향후 개발 계획 (피드백)
+
+**핵심 전략**: `JwtAuthFilter`가 DB에 접근하지 않도록 하여, 트랜잭션 경합 문제를 원천적으로 차단합니다. 이를 위해 JWT 토큰이 인증에 필요한 모든 정보를 갖도록 합니다.
+
+### 1. JWT 토큰 정보 확장
+- 로그인 성공 시 생성되는 JWT 토큰의 Payload에 아래 정보를 필수로 포함시킵니다.
+  - **사용자 ID** (예: `userId` claim)
+  - **사용자 이메일** (예: `sub` claim)
+  - **사용자 역할** (예: `roles` claim)
+
+### 2. 단계별 구현 계획 (재시도)
+
+- **`JwtProvider.java` 수정**:
+  - [ ] `generateToken` 메소드가 `User` 객체를 받아, 위 3가지 정보(ID, 이메일, 역할)를 Claim으로 추가하여 토큰을 생성하도록 수정합니다.
+  - [ ] 기존 코드와의 호환성을 위해, 이메일(`String`)만 받는 `generateToken` 오버로딩 메소드도 유지합니다.
+
+- **`OAuth2SuccessHandler.java` 수정**:
+  - [ ] 로그인 성공 후, `authentication.getPrincipal()`을 통해 얻은 정보로 DB에서 `User` 엔티티를 조회합니다. (이 시점의 DB 조회는 트랜잭션이 완료된 후이므로 안전합니다.)
+  - [ ] 조회한 `User` 객체 전체를 위에서 수정한 `jwtProvider.generateToken(user)`에 넘겨 토큰을 생성합니다.
+
+- **`JwtAuthFilter.java` 수정**:
+  - [ ] **DB 조회 로직을 완전히 제거합니다.**
+  - [ ] 토큰 유효성 검증 후, `jwtProvider`를 통해 토큰에서 `userId`, `email`, `roles` Claim을 직접 추출합니다.
+  - [ ] 추출한 정보로 `User` 객체를 **직접 생성**합니다. (DB 조회가 아닌, new 또는 builder 사용)
+    - **주의**: `User` 엔티티의 Builder가 `id`를 설정하지 못하므로, `id`를 설정할 수 있는 생성자나 별도의 Setter가 필요할 수 있습니다. 이 부분은 `User` 엔티티 구조 확인 후 진행해야 합니다.
+  - [ ] 생성된 `User` 객체를 `UsernamePasswordAuthenticationToken`의 Principal로 설정합니다.
+
+- **`StoryController.java` 및 다른 컨트롤러**:
+  - [ ] 기존 코드(롤백된 상태)를 그대로 유지합니다. `@AuthenticationPrincipal User user` 어노테이션이 `JwtAuthFilter`에서 생성한 `User` 객체를 정상적으로 주입받게 됩니다.
+
+이 계획을 따르면, 인증 과정에서 발생하는 모든 DB 경합 문제를 회피하고 안정적이고 효율적인 인증 시스템을 구축할 수 있습니다.
+--- End of Context from: ../.gemini/GEMINI.md ---
+
+--- Context from: GEMINI.md ---
 # 신규 기능: 구독 기반 결제 시스템 도입
 
 ## 1. 비즈니스 목표 및 요구사항
@@ -180,3 +258,52 @@
   - 사용자가 페이지를 넘길 때, 해당 페이지의 `imageUrl`과 `audioUrl`이 있는지 확인합니다.
   - 정보가 없다면, 로딩 상태를 표시하고 백엔드의 신규 API(`.../assets`)를 호출하여 생성을 요청합니다.
   - API 응답으로 URL들을 받으면, 상태를 업데이트하여 이미지와 오디오 플레이어를 렌더링합니다.
+
+---
+### 신규 기능: 캐릭터 일관성 강화 (전략 2)
+
+**목표:** 사용자가 선택한 캐릭터가 동화책의 모든 페이지에서 일관된 모습으로 표현되도록 이미지 생성 시스템을 개선합니다. `../testchardir/`에 있는 캐릭터 이미지 파일을 활용합니다.
+
+**1. DB 스키마 변경 (Backend - Spring Boot)**
+*   **`Character` 엔티티 확장**: `Character` 엔티티(또는 관련 테이블)에 다음 필드를 추가합니다.
+    *   `image_url` (String): 캐릭터의 대표 이미지 URL 또는 경로. (현재는 `../testchardir/` 경로를 사용하지만, 실제 서비스에서는 S3 등 스토리지 URL이 될 것임)
+    *   `visual_description` (Text): 캐릭터의 외형적 특징을 상세하게 묘사하는 텍스트 프롬프트. (예: "A brave rabbit with long floppy ears, wearing a small blue vest, and carrying a tiny wooden sword.")
+*   **마이그레이션 스크립트 생성**: `VXX__add_character_image_and_description.sql` (h2 및 postgres) 스크립트를 생성하여 `characters` 테이블에 `image_url` 및 `visual_description` 컬럼을 추가합니다.
+
+**2. 백엔드 로직 수정 (Spring Boot)**
+*   **`CharacterService`**: 캐릭터 정보를 조회할 때 `image_url`과 `visual_description`을 함께 반환하도록 수정합니다.
+*   **`StoryService`**:
+    *   `generateAssetsForPage(storyId, pageNo)` 메소드에서, 해당 동화에 선택된 캐릭터의 `image_url`과 `visual_description`을 조회합니다.
+    *   이 정보를 `ai-python` 서비스의 `generate-page-assets` API 호출 시 요청 본문에 포함하여 전달합니다.
+    *   **요청 본문 예시**:
+        ```json
+        {
+            "text": "페이지 텍스트",
+            "art_style": "...",
+            "character_visuals": [
+                {
+                    "name": "lulu-rabbit",
+                    "visual_description": "A brave rabbit with long floppy ears, wearing a small blue vest, and carrying a tiny wooden sword.",
+                    "image_url": "file:///Users/kyj/find-me2/testchardir/lulu-rabbit.png" // 또는 base64 인코딩된 이미지 데이터
+                }
+            ]
+        }
+        ```
+
+**3. AI 서비스 수정 (Python)**
+*   **`schemas.py` 수정**:
+    *   `CharacterVisual` Pydantic 모델에 `image_url: Optional[str]` 필드를 추가합니다.
+    *   `GeneratePageAssetsRequest` (가칭) 모델에 `character_visuals: Optional[List[CharacterVisual]]` 필드를 포함합니다.
+*   **`main.py` 엔드포인트 수정**:
+    *   `POST /ai/generate-page-assets` 엔드포인트가 `character_visuals`를 요청 본문으로 받을 수 있도록 수정합니다.
+    *   받은 `character_visuals` 데이터를 `image_service.generate_image` 함수로 전달합니다.
+*   **`image_service.py` 수정**:
+    *   `generate_image` 함수가 `character_visuals` 리스트를 받으면, 각 캐릭터의 `visual_description`을 프롬프트에 포함시킵니다.
+    *   **참조 이미지 활용 로직 추가**:
+        *   `GeminiImageProvider` (Imagen)가 이미지 프롬프팅을 지원하는지 확인합니다. (Vertex AI Imagen은 이미지 프롬프팅을 지원합니다.)
+        *   만약 지원한다면, `character_visuals`의 `image_url`을 읽어와 이미지 프롬프트로 활용하는 로직을 `GeminiImageProvider` 내부에 구현합니다.
+        *   `image_url`이 로컬 파일 경로일 경우, 해당 파일을 읽어 base64로 인코딩하여 모델에 전달해야 합니다. (실제 서비스에서는 S3 URL을 직접 전달할 수 있도록 변경될 수 있음)
+        *   **주의**: 현재 `image_service.py`는 `character_images`를 `CharacterProfile` 객체 리스트로 받는데, 이 구조를 `CharacterVisual`로 통일하거나, `CharacterProfile`에 `image_url` 필드를 추가하는 것을 고려합니다. (현재 `CharacterVisual`이 더 적합해 보임)
+
+**4. 프론트엔드 수정 (React)**
+*   **캐릭터 선택 시 정보 전달**: 사용자가 캐릭터를 선택하면, 해당 캐릭터의 `image_url`과 `visual_description`을 백엔드 API 호출 시 함께 전달하도록 로직을 수정합니다.

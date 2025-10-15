@@ -25,7 +25,8 @@ interface StoryCharacter {
     persona?: string | null;
     catchphrase?: string | null;
     promptKeywords?: string | null;
-    imagePath?: string | null;
+    imageUrl?: string | null; // Renamed from imagePath
+    visualDescription?: string | null; // Added
 }
 
 interface StoryDetailData {
@@ -126,7 +127,8 @@ const StoryDetail: React.FC = () => {
                   persona: character.persona ?? null,
                   catchphrase: character.catchphrase ?? null,
                   promptKeywords: character.promptKeywords ?? character.prompt_keywords ?? null,
-                  imagePath: character.imagePath ?? character.image_path ?? null,
+                  imageUrl: character.imageUrl ?? character.image_url ?? null, // Updated
+                  visualDescription: character.visualDescription ?? character.visual_description ?? null, // Added
               }))
             : [];
 
@@ -513,7 +515,7 @@ const StoryDetail: React.FC = () => {
                                 <h2 className="text-lg font-semibold mb-2">등장 캐릭터</h2>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     {story.characters.map(character => {
-                                        const imageUrl = buildAssetUrl(character.imagePath);
+                                        const imageUrl = buildAssetUrl(character.imageUrl); // Changed from imagePath
                                         return (
                                             <div
                                                 key={character.id}

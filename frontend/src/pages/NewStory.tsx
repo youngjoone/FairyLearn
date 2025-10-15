@@ -24,7 +24,8 @@ interface CharacterProfile {
     persona?: string | null;
     catchphrase?: string | null;
     promptKeywords?: string | null;
-    imagePath?: string | null;
+    imageUrl?: string | null; // Renamed from imagePath
+    visualDescription?: string | null; // Added
 }
 
 const ageRanges = ['4-5', '6-7', '8-9'];
@@ -122,7 +123,8 @@ const NewStory: React.FC = () => {
                     persona: character.persona ?? null,
                     catchphrase: character.catchphrase ?? null,
                     promptKeywords: character.promptKeywords ?? character.prompt_keywords ?? null,
-                    imagePath: character.imagePath ?? character.image_path ?? null,
+                    imageUrl: character.imageUrl ?? character.image_url ?? null, // Updated
+                    visualDescription: character.visualDescription ?? character.visual_description ?? null, // Added
                 }));
                 setCharacters(normalized);
             } catch (err) {
@@ -167,6 +169,14 @@ const NewStory: React.FC = () => {
 
         setIsSubmitting(true);
         try {
+            const selectedCharacterProfiles = characters.filter(char => selectedCharacterIds.includes(char.id));
+            const characterVisuals = selectedCharacterProfiles.map(char => ({
+                id: char.id,
+                name: char.name,
+                visualDescription: char.visualDescription || '',
+                imageUrl: char.imageUrl || '',
+            }));
+
             const requestBody = {
                 title: title || undefined, // Send title only if not empty
                 ageRange,
@@ -175,6 +185,7 @@ const NewStory: React.FC = () => {
                 minPages,
                 language,
                 characterIds: selectedCharacterIds,
+                characterVisuals: characterVisuals, // Added
             };
 
             const response = await fetchWithErrorHandler<{ id: number }>('http://localhost:8080/api/stories', {
@@ -261,7 +272,7 @@ const NewStory: React.FC = () => {
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         {characters.map(character => {
                                             const isSelected = selectedCharacterIds.includes(character.id);
-                                            const imageUrl = buildAssetUrl(character.imagePath);
+                                            const imageUrl = buildAssetUrl(character.imageUrl);
                                             return (
                                                 <button
                                                     type="button"
