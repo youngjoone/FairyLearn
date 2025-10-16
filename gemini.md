@@ -32,7 +32,7 @@
 # 구글 소셜 로그인 개발 회고 및 재시도 계획
 
 이번 구글 소셜 로그인 개발 과정에서 여러 문제가 발생하여, 원점에서 다시 시작하기로 결정했습니다. 아래는 문제점 요약 및 향후 권장되는 개발 계획입니다.
-- FairyLearn 프로젝트 리팩토링 계획: 현재의 순차적 AI 호출 방식을, 1단계로 텍스트 스트리밍을 구현하고 2단계로 그림/음성 생성을 병렬화하는 '실시간 스트리밍 및 병렬 처리' 아키텍처로 변경하는 것을 목표로 함.
+- FairyLearn 프로젝트 리팩토링 계획: 현재의 순차적 AI 호출 방식을, 1단계로 텍스트 스트리밍을 구현하고 2단계로 **이미지 생성 중심의 병렬 처리** 아키텍처로 변경한다. (음성 생성은 추후 버튼 기반 별도 흐름으로 설계)
 
 ## 문제점 요약
 
@@ -178,7 +178,7 @@
 ## 3. 단계별 실행 계획
 
 ### 1단계: 스키마 및 프롬프트 통합 수정
-- [ ] **`schemas.py` 수정**: `GenerateResponse` 또는 `StoryOutput` Pydantic 모델에 `reading_plan: List[dict]` 와 같은 필드를 추가하여, 텍스트 생성 결과에 오디오 계획이 포함될 수 있는 구조를 마련합니다.
+- [ ] **`schemas.py` 수정**: `GenerateResponse` 또는 `StoryOutput` Pydantic 모델에 `reading_plan: List[dict]` 와 같은 필드를 추가하여, 텍스트 생성 결과에 오디오 계획이 포함될 수 있는 구조를 마련합니다. *(보류: 리딩 플랜은 향후 오디오 합성 단계에서 별도로 생성하도록 변경됨)*
 - [ ] **프롬프트 수정**: `text_service.py`에서 사용할 프롬프트를 수정하여, Gemini(또는 OpenAI)가 동화 텍스트와 **동시에** 오디오 읽기 계획(세그먼트, 화자, 감정 등)을 함께 생성하도록 요청합니다. JSON 출력 스키마에 대한 설명도 이 변경사항을 반영하여 업데이트합니다.
 
 ### 2단계: `text_service.py` 구현
@@ -218,7 +218,7 @@
 
 ## 1. 목표
 - **사용자 경험(UX) 향상:** 전체 동화 생성을 기다릴 필요 없이, 페이지 단위로 이미지와 오디오를 즉시 생성하고 소비하여 사용자의 대기 시간을 최소화합니다.
-- **품질 유지 및 개선:** 페이지별 오디오 생성으로 API 제약(예: Azure TTS 50 세그먼트 제한)을 회피하고, 더욱 상세하고 표현력 풍부한 '오디오 연출 계획(`reading_plan`)'을 적용하여 오디오 품질을 극대화합니다.
+- **품질 유지 및 개선:** 페이지별 이미지가 먼저 제공되도록 하고, 오디오 생성은 추후 버튼 기반으로 호출해 별도의 `reading_plan`을 생성하도록 한다. (현재 단계에서는 이미지 품질·일관성 확보와 병렬화에 집중)
 - **시스템 안정성 확보:** 자원 소모가 큰 전체 동화 단위의 작업을 페이지 단위의 작은 작업으로 분산하여 시스템 부하를 줄이고 안정성을 높입니다.
 
 ## 2. 핵심 요구사항
@@ -232,78 +232,140 @@
   - 신규 마이그레이션 스크립트(예: `V24__add_assets_to_story_pages.sql`)를 작성하여 `story_pages` 테이블에 `audio_url`, `image_url` 컬럼을 추가합니다.
   - `stories` 테이블의 `full_audio_url`, `reading_plan` 등 이제는 필요 없어진 컬럼을 제거하는 마이그레이션을 진행합니다.
 - **[ ] 신규 API 엔드포인트 생성:**
-  - `StoryController.java`에 특정 페이지의 에셋(이미지, 오디오)을 생성하고 조회하는 API를 구현합니다.
+  - `StoryController.java`에 특정 페이지의 에셋(이미지 위주, 필요 시 오디오는 별도 트리거) 생성/조회 API를 구현합니다.
   - **엔드포인트 예시:** `POST /api/stories/{storyId}/pages/{pageNo}/assets`
 - **[ ] `StoryService.java` 로직 수정:**
   - `generateAssetsForPage(storyId, pageNo)`와 같은 신규 서비스 메소드를 구현합니다.
   - **로직 상세:**
     1. `storyId`와 `pageNo`로 `StoryPage` 엔티티를 조회합니다.
-    2. 페이지 텍스트, 캐릭터 정보 등을 `ai-python` 서비스의 신규 API(아래 참고)로 전달하여 이미지와 오디오 생성을 동시에 요청합니다.
-    3. 응답으로 받은 `imageUrl`과 `audioUrl`을 `StoryPage` 엔티티에 업데이트하고 저장합니다.
+    2. 페이지 텍스트, 캐릭터 정보 등을 `ai-python` 서비스의 신규 API(아래 참고)로 전달하여 **이미지를 우선 생성**합니다. (오디오는 별도 사용자 요청 시 수행)
+    3. 응답으로 받은 `imageUrl`을 `StoryPage` 엔티티에 업데이트하고 저장합니다. 오디오가 필요한 경우에는 별도의 API를 통해 생성·저장합니다.
+
+#### 병렬화 전략 (Spring Boot)
+- `StorybookService.generateRemainingImages`는 `CompletableFuture` 또는 Reactor `Flux`를 이용해 여러 페이지 요청을 동시에 전송하도록 리팩터링합니다.
+- 고정 크기의 `Executor`(예: 4~6개 스레드)를 주입해 과도한 동시 호출을 방지하고, `CompletableFuture.allOf(...).join()`으로 완료를 대기합니다.
+- 각 비동기 작업은 독립 트랜잭션(`@Transactional(propagation = REQUIRES_NEW)`)으로 페이지 저장을 처리하고, 실패한 페이지는 재시도/로깅 정책을 명시합니다.
 
 ### 2단계: AI 서비스(Python) 수정
 - **[ ] 신규 통합 API 엔드포인트 생성:**
   - `main.py`에 페이지 단위 에셋 생성을 위한 `POST /ai/generate-page-assets` API를 구현합니다.
   - **요청 본문:** `{ "text": "페이지 텍스트", "characters": [...], "art_style": "..." }`
 - **[ ] 병렬 처리 로직 구현:**
-  - 해당 엔드포인트는 `asyncio.gather`를 사용하여 `image_service.generate_image`와 `audio_service.plan_and_synthesize_audio`를 **병렬로 동시 호출**하여 처리 시간을 단축합니다.
-  - `audio_service.py`에는 페이지 텍스트를 받아 `reading_plan` 생성과 TTS 합성을 순차적으로 처리하는 `plan_and_synthesize_audio` 헬퍼 함수를 구현합니다.
-  - **응답:** `{ "imageUrl": "...", "audioUrl": "..." }` 형태로 두 결과물의 URL을 함께 반환합니다.
+  - 해당 엔드포인트는 **이미지 생성을 중심으로 하되**, 향후 필요 시 오디오 요청을 함께 받으면 `asyncio.gather`로 결합할 수 있도록 구조화합니다.
+  - 기본 응답은 `{ "imageUrl": "...", "imageMetadata": { ... } }` 형태로 이미지 관련 정보만 반환하고, 오디오는 별도 버튼/엔드포인트로 처리합니다.
 
 ### 3단계: 프론트엔드(React) 수정
 - **[ ] UI/UX 변경:**
   - 동화책을 보는 `StorybookView.tsx`와 같은 컴포넌트에서, 전체 동화를 읽는 버튼을 제거합니다.
   - 대신 각 페이지 내부에 '이 페이지 듣기' (재생/정지) 버튼과 이미지를 표시할 영역을 마련합니다.
 - **[ ] API 호출 로직 변경:**
-  - 사용자가 페이지를 넘길 때, 해당 페이지의 `imageUrl`과 `audioUrl`이 있는지 확인합니다.
-  - 정보가 없다면, 로딩 상태를 표시하고 백엔드의 신규 API(`.../assets`)를 호출하여 생성을 요청합니다.
-  - API 응답으로 URL들을 받으면, 상태를 업데이트하여 이미지와 오디오 플레이어를 렌더링합니다.
+  - 사용자가 페이지를 넘길 때, 해당 페이지의 `imageUrl`이 있는지 확인합니다.
+  - 정보가 없다면 로딩 상태를 표시하고 백엔드의 신규 API(`.../assets`)를 호출하여 이미지를 요청합니다.
+  - 응답으로 받은 `imageUrl`을 상태에 반영해 이미지를 렌더링합니다. 오디오 생성 버튼은 별도 API(`/stories/{id}/audio` 등)를 호출하도록 유지합니다.
 
 ---
-### 신규 기능: 캐릭터 일관성 강화 (전략 2)
+### 신규 기능: 캐릭터 일관성 강화 – 최종 실행 계획 (최종 수정)
 
-**목표:** 사용자가 선택한 캐릭터가 동화책의 모든 페이지에서 일관된 모습으로 표현되도록 이미지 생성 시스템을 개선합니다. `../testchardir/`에 있는 캐릭터 이미지 파일을 활용합니다.
+**최종 목표:** 동화책 생성 중 **예상치 못한 새 캐릭터가 등장**하면, 그 캐릭터의 **참조 이미지를 동적으로 생성(모델링)**하고, 이후 모든 페이지에서 그 캐릭터의 **외형 일관성을 유지**한다. 이 모든 과정은 **병렬 처리**를 통해 사용자 경험을 해치지 않도록 빠르게 동작해야 한다.
 
-**1. DB 스키마 변경 (Backend - Spring Boot)**
-*   **`Character` 엔티티 확장**: `Character` 엔티티(또는 관련 테이블)에 다음 필드를 추가합니다.
-    *   `image_url` (String): 캐릭터의 대표 이미지 URL 또는 경로. (현재는 `../testchardir/` 경로를 사용하지만, 실제 서비스에서는 S3 등 스토리지 URL이 될 것임)
-    *   `visual_description` (Text): 캐릭터의 외형적 특징을 상세하게 묘사하는 텍스트 프롬프트. (예: "A brave rabbit with long floppy ears, wearing a small blue vest, and carrying a tiny wooden sword.")
-*   **마이그레이션 스크립트 생성**: `VXX__add_character_image_and_description.sql` (h2 및 postgres) 스크립트를 생성하여 `characters` 테이블에 `image_url` 및 `visual_description` 컬럼을 추가합니다.
+#### 1. 데이터베이스 (DB) 수정
+*   **`characters` 테이블 확장:**
+    *   `image_url` (String): 캐릭터의 참조 이미지 URL (GCS/S3 등).
+    *   `visual_description` (Text): 캐릭터의 외형적 특징을 상세하게 묘사하는 텍스트 프롬프트.
+    *   **정책:** 두 필드 모두 `NULL`을 허용합니다. 캐릭터가 처음 DB에 등록될 때는 이 값들이 비어있을 수 있기 때문입니다. 서비스 로직에서 `null`일 경우의 기본 동작을 정의합니다.
+    *   `modeling_status` (String, e.g., `PENDING`, `COMPLETED`, `FAILED`): 새 캐릭터의 참조 이미지 생성 상태를 추적합니다.
 
-**2. 백엔드 로직 수정 (Spring Boot)**
-*   **`CharacterService`**: 캐릭터 정보를 조회할 때 `image_url`과 `visual_description`을 함께 반환하도록 수정합니다.
-*   **`StoryService`**:
-    *   `generateAssetsForPage(storyId, pageNo)` 메소드에서, 해당 동화에 선택된 캐릭터의 `image_url`과 `visual_description`을 조회합니다.
-    *   이 정보를 `ai-python` 서비스의 `generate-page-assets` API 호출 시 요청 본문에 포함하여 전달합니다.
-    *   **요청 본문 예시**:
-        ```json
-        {
-            "text": "페이지 텍스트",
-            "art_style": "...",
-            "character_visuals": [
-                {
-                    "name": "lulu-rabbit",
-                    "visual_description": "A brave rabbit with long floppy ears, wearing a small blue vest, and carrying a tiny wooden sword.",
-                    "image_url": "file:///Users/kyj/find-me2/testchardir/lulu-rabbit.png" // 또는 base64 인코딩된 이미지 데이터
-                }
-            ]
-        }
-        ```
+#### 2. 백엔드 (Spring Boot) 로직: '캐릭터 모델링 큐' 구현
+*   **`StoryService` 로직 강화:**
+    1.  AI가 동화 텍스트를 생성하면, 백엔드는 텍스트에 등장하는 캐릭터 이름(슬러그) 목록을 추출합니다.
+        *   **새 캐릭터 판별 방법:** LLM의 출력 스키마에 캐릭터 목록과 각 캐릭터의 `visual_description`을 포함하도록 프롬프트를 설계하는 것을 우선합니다. LLM이 제공한 정보를 기반으로 캐릭터를 판별합니다. LLM의 텍스트 생성 단계 계획(예: `ai-python/service/text_service.py`의 프롬프트 및 스키마)과 동기화하여 캐릭터 목록 및 `visual_description`을 확보하는 방식을 구체화합니다.
+    2.  각 캐릭터 이름에 대해 DB의 `characters` 테이블을 조회합니다.
+    3.  DB에 없는 **신규 캐릭터**가 발견되면:
+        a. `characters` 테이블에 새 레코드를 생성합니다 (`name`만 있고 `image_url`, `visual_description` 등은 `null`, `modeling_status`는 `PENDING`).
+            *   **`visual_description` 기본값:** LLM이 제공하지 않을 경우, 캐릭터 이름 기반의 일반적인 묘사(예: "A [character_name] in the story")를 기본값으로 사용합니다.
+        b. **비동기 이벤트(Asynchronous Event)를 발행**합니다. (예: Spring의 `@Async` 또는 RabbitMQ/Kafka 같은 메시지 큐 사용) 이 이벤트는 '신규 캐릭터 모델링 요청'을 의미합니다.
 
-**3. AI 서비스 수정 (Python)**
-*   **`schemas.py` 수정**:
-    *   `CharacterVisual` Pydantic 모델에 `image_url: Optional[str]` 필드를 추가합니다.
-    *   `GeneratePageAssetsRequest` (가칭) 모델에 `character_visuals: Optional[List[CharacterVisual]]` 필드를 포함합니다.
-*   **`main.py` 엔드포인트 수정**:
-    *   `POST /ai/generate-page-assets` 엔드포인트가 `character_visuals`를 요청 본문으로 받을 수 있도록 수정합니다.
-    *   받은 `character_visuals` 데이터를 `image_service.generate_image` 함수로 전달합니다.
-*   **`image_service.py` 수정**:
-    *   `generate_image` 함수가 `character_visuals` 리스트를 받으면, 각 캐릭터의 `visual_description`을 프롬프트에 포함시킵니다.
-    *   **참조 이미지 활용 로직 추가**:
-        *   `GeminiImageProvider` (Imagen)가 이미지 프롬프팅을 지원하는지 확인합니다. (Vertex AI Imagen은 이미지 프롬프팅을 지원합니다.)
-        *   만약 지원한다면, `character_visuals`의 `image_url`을 읽어와 이미지 프롬프트로 활용하는 로직을 `GeminiImageProvider` 내부에 구현합니다.
-        *   `image_url`이 로컬 파일 경로일 경우, 해당 파일을 읽어 base64로 인코딩하여 모델에 전달해야 합니다. (실제 서비스에서는 S3 URL을 직접 전달할 수 있도록 변경될 수 있음)
-        *   **주의**: 현재 `image_service.py`는 `character_images`를 `CharacterProfile` 객체 리스트로 받는데, 이 구조를 `CharacterVisual`로 통일하거나, `CharacterProfile`에 `image_url` 필드를 추가하는 것을 고려합니다. (현재 `CharacterVisual`이 더 적합해 보임)
+*   **`CharacterModelingService` (신규 서비스):**
+    *   위에서 발행된 비동기 이벤트를 수신하여 처리합니다.
+    *   **중복 이벤트 방지:** 이벤트를 처리하기 전에 해당 캐릭터의 `modeling_status`가 이미 `PENDING` 또는 `COMPLETED`인지 확인하여 중복 모델링 요청을 방지합니다. (DB에 캐릭터 이름에 대한 `UNIQUE` 제약 조건 추가 고려)
+    *   AI Python 서비스의 **`POST /ai/create-character-reference-image`** API를 호출합니다. (아래 AI 서비스 계획 참고)
+    *   AI 서비스로부터 생성된 참조 이미지의 URL(GCS/S3 등)을 받으면, `characters` 테이블의 해당 캐릭터 레코드에 `image_url`과 `modeling_status` (`COMPLETED`)를 업데이트합니다.
+    *   **재시도 전략:** `FAILED` 상태의 캐릭터에 대해서는 일정 시간 후 자동으로 재시도하거나, 관리자가 수동으로 재시도를 트리거할 수 있는 메커니즘을 구현합니다 (예: 지수 백오프(Exponential Backoff) 전략).
 
-**4. 프론트엔드 수정 (React)**
-*   **캐릭터 선택 시 정보 전달**: 사용자가 캐릭터를 선택하면, 해당 캐릭터의 `image_url`과 `visual_description`을 백엔드 API 호출 시 함께 전달하도록 로직을 수정합니다.
+#### 3. AI Python 서비스 로직: 역할 분리
+*   **스키마:** `schemas.py`의 `CharacterVisual` 모델은 그대로 사용합니다.
+*   **신규 엔드포인트 추가:** `main.py`에 캐릭터 모델링을 위한 별도 API를 추가합니다.
+    *   **`POST /ai/create-character-reference-image`** (캐릭터 참조 이미지 생성):
+        *   **요청:** `{ "character_name": "...", "description_prompt": "..." }`
+        *   **기능:** 캐릭터 이름과 기본 설명을 받아, Vertex AI Imagen을 사용해 캐릭터의 **표준 참조 이미지(캐릭터 시트 같은)**를 1장 생성합니다.
+        *   **이미지 저장 및 URL 정책:** 생성된 이미지를 GCS/S3와 같은 클라우드 스토리지에 업로드하고, 해당 이미지의 **공개 접근 가능한 URL**을 반환합니다. 운영 환경에서는 GCS/S3와 같은 클라우드 스토리지에 업로드하고 공개 URL을 반환하며, 로컬 개발 환경에서는 로컬 파일 시스템에 저장 후 개발 서버를 통해 접근 가능한 URL을 반환하도록 환경별 설정을 명시합니다.
+*   **기존 엔드포인트 수정:** `main.py`의 `POST /ai/generate-page-assets` (페이지별 에셋 생성)
+    *   **요청:** 기존과 동일 (`{ "text": "...", "character_visuals": [...] }`)
+    *   **로직 수정 (`image_service.py`):**
+        1.  `character_visuals` 배열을 순회합니다.
+        2.  `image_url`이 있는 캐릭터(기존 캐릭터 또는 모델링이 완료된 새 캐릭터)는 **텍스트 프롬프트 + 이미지 참조(Image Prompting)**를 사용하여 Imagen을 호출합니다.
+            *   **이미지 전달 방식:** 백엔드에서 `image_url`을 통해 이미지를 읽어 Base64로 인코딩하여 전달하거나, AI 서비스가 직접 GCS/S3 URL을 통해 이미지를 참조하도록 구현합니다. (운영 환경에서는 GCS/S3 URL 참조가 더 효율적)
+        3.  `image_url`이 없는 캐릭터(모델링 중인 새 캐릭터)는 **텍스트 프롬프트(`visual_description`)만으로 임시 이미지를 생성하여 표시하는 것을 기본으로 합니다. (완전히 일반적인 '로딩 중' 이미지보다는 캐릭터의 특징을 반영한 임시 이미지가 UX에 더 유리하다고 판단)**
+        4.  이미지 생성 함수 자체는 필요 시 `asyncio.gather`로 확장 가능하도록 유지하되, 기본 경로는 단일 이미지 생성에 집중합니다.
+
+
+
+#### 4. 프론트엔드 (React) 로직
+*   **`StorybookView.tsx` (동화책 보기 페이지):**
+    *   페이지를 넘길 때 `generateAssetsForPage`를 호출하는 현재 로직을 유지합니다.
+    *   백엔드의 `POST /api/stories/{storyId}/pages/{pageNo}/assets` API 응답에 해당 페이지에 등장하는 캐릭터들의 `modeling_status`를 포함하도록 합니다.
+    *   프론트엔드는 이 `modeling_status`를 활용하여, 아직 모델링이 완료되지 않은 캐릭터에 대해 "캐릭터 구상 중..."과 같은 로딩 상태를 더 정확하게 표시합니다.
+    *   불필요한 폴링을 줄이고, `modeling_status`가 `PENDING`인 경우에만 **고정된 간격(예: 4초마다)**으로 `generateAssetsForPage`를 호출하여, 모델링이 완료되면 이미지를 갱신해서 보여주는 로직을 추가합니다. `modeling_status`가 `COMPLETED` 또는 `FAILED`로 변경되면 폴링을 중단합니다.
+
+---
+### 이 계획을 개발하기 위해 필요한 것들
+
+이 복잡한 기능을 성공적으로 개발하기 위해서는 다음과 같은 기술 스택, 인프라, 그리고 협업 역량이 필요합니다.
+
+#### **1. 기술 스택 및 지식**
+
+*   **백엔드 (Spring Boot):**
+    *   Java/Kotlin 언어 및 Spring Framework (Spring Boot, Spring Data JPA, Spring Security)
+    *   비동기 처리 (Spring `@Async`, 메시지 큐 연동)
+    *   RESTful API 설계 및 구현
+    *   DB 마이그레이션 도구 (Flyway/Liquibase)
+*   **AI 서비스 (Python):**
+    *   Python 언어 및 FastAPI 프레임워크
+    *   Pydantic (데이터 유효성 검사 및 직렬화)
+    *   Google Vertex AI SDK (Imagen 모델 연동)
+    *   클라우드 스토리지 SDK (GCS/S3 연동)
+    *   비동기 프로그래밍 (`asyncio`)
+    *   LLM 프롬프트 엔지니어링 (캐릭터 정보 추출 및 이미지 생성 프롬프트 설계)
+*   **프론트엔드 (React):**
+    *   React/TypeScript/JavaScript 언어 및 프레임워크
+    *   상태 관리 라이브러리 (Recoil, Zustand, Redux 등)
+    *   API 연동 (Axios, Fetch API 등)
+    *   UI/UX 설계 및 구현 (로딩 상태, 이미지 표시, 폴링 로직)
+*   **데이터베이스 (DB):**
+    *   SQL (PostgreSQL, H2) 및 데이터 모델링
+*   **클라우드 플랫폼:**
+    *   Google Cloud Platform (Vertex AI, Cloud Storage, Pub/Sub 등) 또는 AWS (S3, SQS 등)에 대한 이해
+
+#### **2. 인프라 및 도구**
+
+*   **개발 환경:**
+    *   IDE (IntelliJ IDEA, VS Code)
+    *   버전 관리 시스템 (Git)
+    *   컨테이너 (Docker) 및 오케스트레이션 (Kubernetes) (선택 사항이지만 권장)
+*   **AI 모델:**
+    *   Google Vertex AI Imagen API 접근 권한 및 할당량
+*   **클라우드 스토리지:**
+    *   Google Cloud Storage (GCS) 또는 AWS S3 버킷
+*   **메시지 큐 (선택 사항이지만 권장):**
+    *   Google Cloud Pub/Sub, RabbitMQ, Kafka 또는 Spring의 `@Async`를 활용한 경량 큐
+*   **CI/CD 파이프라인:**
+    *   자동화된 테스트, 빌드, 배포를 위한 시스템 (Jenkins, GitHub Actions, GitLab CI 등)
+*   **모니터링 및 로깅:**
+    *   시스템 상태, API 호출, 오류 등을 추적하기 위한 도구 (Prometheus, Grafana, ELK Stack, Cloud Logging 등)
+
+#### **3. 문서화 및 협업**
+
+*   **API 명세:** 백엔드 및 AI 서비스의 모든 API에 대한 상세한 OpenAPI/Swagger 문서
+*   **기술 설계 문서:** 이미지 저장 정책, 재시도 메커니즘, 환경별 설정 등 복잡한 부분에 대한 별도 문서
+*   **프로젝트 관리 도구:** Jira, Trello, Asana 등을 활용한 태스크 관리, 우선순위 지정, 담당자 지정
+*   **정기적인 팀 싱크:** 백엔드, AI, 프론트엔드 팀 간의 긴밀한 소통 및 진행 상황 공유

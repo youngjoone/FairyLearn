@@ -26,6 +26,7 @@ interface CharacterProfile {
     promptKeywords?: string | null;
     imageUrl?: string | null; // Renamed from imagePath
     visualDescription?: string | null; // Added
+    modelingStatus?: string | null;
 }
 
 const ageRanges = ['4-5', '6-7', '8-9'];
@@ -125,6 +126,7 @@ const NewStory: React.FC = () => {
                     promptKeywords: character.promptKeywords ?? character.prompt_keywords ?? null,
                     imageUrl: character.imageUrl ?? character.image_url ?? null, // Updated
                     visualDescription: character.visualDescription ?? character.visual_description ?? null, // Added
+                    modelingStatus: character.modelingStatus ?? character.modeling_status ?? null,
                 }));
                 setCharacters(normalized);
             } catch (err) {
@@ -173,8 +175,10 @@ const NewStory: React.FC = () => {
             const characterVisuals = selectedCharacterProfiles.map(char => ({
                 id: char.id,
                 name: char.name,
+                slug: char.slug,
                 visualDescription: char.visualDescription || '',
                 imageUrl: char.imageUrl || '',
+                modelingStatus: char.modelingStatus || undefined,
             }));
 
             const requestBody = {

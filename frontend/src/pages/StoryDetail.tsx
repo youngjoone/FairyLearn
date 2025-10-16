@@ -27,6 +27,7 @@ interface StoryCharacter {
     promptKeywords?: string | null;
     imageUrl?: string | null; // Renamed from imagePath
     visualDescription?: string | null; // Added
+    modelingStatus?: string | null;
 }
 
 interface StoryDetailData {
@@ -129,6 +130,7 @@ const StoryDetail: React.FC = () => {
                   promptKeywords: character.promptKeywords ?? character.prompt_keywords ?? null,
                   imageUrl: character.imageUrl ?? character.image_url ?? null, // Updated
                   visualDescription: character.visualDescription ?? character.visual_description ?? null, // Added
+                  modelingStatus: character.modelingStatus ?? character.modeling_status ?? null,
               }))
             : [];
 
@@ -539,7 +541,16 @@ const StoryDetail: React.FC = () => {
                                                     {character.catchphrase && (
                                                         <p className="text-sm text-blue-600 mt-1 leading-snug">{character.catchphrase}</p>
                                                     )}
-                                                    
+                                                    {character.visualDescription && (
+                                                        <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                                                            {character.visualDescription}
+                                                        </p>
+                                                    )}
+                                                    {character.modelingStatus && (
+                                                        <p className="text-xs text-gray-500 mt-2 uppercase tracking-wide">
+                                                            모델링 상태: {character.modelingStatus}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
                                         );
