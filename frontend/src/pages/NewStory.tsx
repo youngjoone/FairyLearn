@@ -105,7 +105,7 @@ const NewStory: React.FC = () => {
         const fetchQuota = async () => {
             setIsLoadingQuota(true);
             try {
-                const quotaData = await fetchWithErrorHandler<StorageQuota>('http://localhost:8080/api/storage/me');
+                const quotaData = await fetchWithErrorHandler<StorageQuota>('storage/me');
                 setQuota(quotaData);
             } catch (err) {
                 addToast(`저장 공간 정보 로드 실패: ${err instanceof Error ? err.message : String(err)}`, 'error');
@@ -116,7 +116,7 @@ const NewStory: React.FC = () => {
         const fetchCharacters = async () => {
             setIsLoadingCharacters(true);
             try {
-                const list = await fetchWithErrorHandler<CharacterProfile[]>('/public/characters');
+                const list = await fetchWithErrorHandler<CharacterProfile[]>('public/characters');
                 const normalized = list.map((character: any) => ({
                     id: character.id,
                     slug: character.slug,
