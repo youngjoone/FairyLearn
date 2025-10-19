@@ -83,6 +83,7 @@ const NewStory: React.FC = () => {
     const [characters, setCharacters] = useState<CharacterProfile[]>([]);
     const [selectedCharacterIds, setSelectedCharacterIds] = useState<number[]>([]);
     const [isLoadingCharacters, setIsLoadingCharacters] = useState<boolean>(false);
+    const [isFetchingRandom, setIsFetchingRandom] = useState<boolean>(false);
 
     const buildAssetUrl = (path?: string | null): string | null => {
         if (!path) return null;
@@ -160,6 +161,23 @@ const NewStory: React.FC = () => {
             }
             return [...prev, characterId];
         });
+    };
+
+    const handleRandomCharacterSelection = async () => {
+        setIsFetchingRandom(true);
+        try {
+            const randomCharacters = await fetchWithErrorHandler<CharacterProfile[]>('public/characters/random?count=2');
+            if (randomCharacters && randomCharacters.length > 0) {
+                setSelectedCharacterIds(randomCharacters.map(c => c.id));
+                addToast('랜덤 캐릭터가 선택되었습니다!', 'success');
+            } else {
+                addToast('랜덤 캐릭터를 불러오지 못했습니다.', 'error');
+            }
+        } catch (err) {
+            addToast(`랜덤 캐릭터 선택 실패: ${err instanceof Error ? err.message : String(err)}`, 'error');
+        } finally {
+            setIsFetchingRandom(false);
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -261,6 +279,16 @@ const NewStory: React.FC = () => {
                             <div>
                                 <div className="flex items-center justify-between mb-2">
                                     <span className="block text-sm font-medium text-gray-700">캐릭터 선택 (최대 2명)</span>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleRandomCharacterSelection}
+                                        disabled={isFetchingRandom}
+                                        isLoading={isFetchingRandom}
+                                    >
+                                        랜덤 캐릭터
+                                    </Button>
                                     <span className="text-xs text-gray-500">{selectedCharacterIds.length}/2 선택됨</span>
                                 </div>
                                 {isLoadingCharacters ? (
