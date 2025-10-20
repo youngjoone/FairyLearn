@@ -606,9 +606,6 @@ const StoryDetail: React.FC = () => {
                                 공유하기
                             </Button>
                         )}
-                        <Button onClick={handleGenerateAudio} disabled={isGeneratingAudio}>
-                            {story.fullAudioUrl && !isGeneratingAudio ? '동화책 읽기 (AI)' : isGeneratingAudio ? '음성 생성 중...' : '동화책 읽기 (AI)'}
-                        </Button>
                         <Button onClick={handleCreateStorybook} disabled={isCreatingStorybook}>
                             {isCreatingStorybook ? '동화책 준비 중...' : '동화책으로 보기'}
                         </Button>

@@ -63,6 +63,14 @@ const objectivesOptions = [
 ];
 const languages = [{ value: 'KO', label: '한국어' }, { value: 'EN', label: 'English' }];
 
+const artStyleOptions = [
+    { value: '', label: '기본 (AI 추천 스타일)' },
+    { value: '부드럽고 몽환적인 수채화 일러스트', label: '수채화 동화풍' },
+    { value: '밝고 선명한 카툰 스타일', label: '카툰 스타일' },
+    { value: '부드러운 파스텔 톤의 애니메이션 룩', label: '애니메이션 파스텔' },
+    { value: '빈티지 스토리북 펜과 잉크 스타일', label: '빈티지 스토리북' },
+];
+
 const NewStory: React.FC = () => {
     const navigate = useNavigate();
     const { fetchWithErrorHandler } = useApi();
@@ -84,6 +92,10 @@ const NewStory: React.FC = () => {
     const [selectedCharacterIds, setSelectedCharacterIds] = useState<number[]>([]);
     const [isLoadingCharacters, setIsLoadingCharacters] = useState<boolean>(false);
     const [isFetchingRandom, setIsFetchingRandom] = useState<boolean>(false);
+    const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
+    const [moral, setMoral] = useState<string>('');
+    const [requiredElementsInput, setRequiredElementsInput] = useState<string>('');
+    const [artStyle, setArtStyle] = useState<string>('');
 
     const buildAssetUrl = (path?: string | null): string | null => {
         if (!path) return null;
@@ -199,7 +211,13 @@ const NewStory: React.FC = () => {
                 modelingStatus: char.modelingStatus || undefined,
             }));
 
-            const requestBody = {
+            const trimmedMoral = moral.trim();
+            const requiredElements = requiredElementsInput
+                .split(/[\n,]/)
+                .map(item => item.trim())
+                .filter(item => item.length > 0);
+
+            const requestBody: Record<string, unknown> = {
                 title: title || undefined, // Send title only if not empty
                 ageRange,
                 topics,
@@ -209,6 +227,16 @@ const NewStory: React.FC = () => {
                 characterIds: selectedCharacterIds,
                 characterVisuals: characterVisuals, // Added
             };
+
+            if (trimmedMoral) {
+                requestBody.moral = trimmedMoral;
+            }
+            if (requiredElements.length > 0) {
+                requestBody.requiredElements = requiredElements;
+            }
+            if (artStyle) {
+                requestBody.artStyle = artStyle;
+            }
 
             const response = await fetchWithErrorHandler<{ id: number }>('http://localhost:8080/api/stories', {
                 method: 'POST',
@@ -433,6 +461,68 @@ const NewStory: React.FC = () => {
                                     onChange={setLanguage}
                                     className="mt-1 block w-full"
                                 />
+                            </div>
+
+                            <div className="pt-4 mt-6 border-t">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-sm font-semibold text-gray-800">고급 설정</h3>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setShowAdvanced(prev => !prev)}
+                                    >
+                                        {showAdvanced ? '숨기기' : '펼치기'}
+                                    </Button>
+                                </div>
+                                {showAdvanced && (
+                                    <div className="mt-4 space-y-4">
+                                        <div>
+                                            <label htmlFor="moral" className="block text-sm font-medium text-gray-700">
+                                                이야기의 교훈
+                                            </label>
+                                            <textarea
+                                                id="moral"
+                                                value={moral}
+                                                onChange={(e) => setMoral(e.target.value)}
+                                                rows={2}
+                                                maxLength={150}
+                                                placeholder="예) 서로 도우면 어떤 어려움도 해결할 수 있다는 메시지를 전달해 주세요."
+                                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            />
+                                            <p className="mt-1 text-xs text-gray-500">150자 이내로 간단히 입력해주세요.</p>
+                                        </div>
+
+                                        <div>
+                                            <label htmlFor="requiredElements" className="block text-sm font-medium text-gray-700">
+                                                꼭 등장했으면 하는 요소
+                                            </label>
+                                            <textarea
+                                                id="requiredElements"
+                                                value={requiredElementsInput}
+                                                onChange={(e) => setRequiredElementsInput(e.target.value)}
+                                                rows={3}
+                                                placeholder="예) 마법 열쇠, 구름 위 성, 반짝이는 지도"
+                                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            />
+                                            <p className="mt-1 text-xs text-gray-500">쉼표 또는 줄바꿈으로 여러 개를 입력할 수 있어요.</p>
+                                        </div>
+
+                                        <div>
+                                            <label htmlFor="artStyle" className="block text-sm font-medium text-gray-700">
+                                                그림 스타일
+                                            </label>
+                                            <Select
+                                                id="artStyle"
+                                                options={artStyleOptions}
+                                                selectedValue={artStyle}
+                                                onChange={setArtStyle}
+                                                className="mt-1 block w-full"
+                                            />
+                                            <p className="mt-1 text-xs text-gray-500">선택하지 않으면 AI가 상황에 맞는 스타일을 제안합니다.</p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <CardFooter className="flex justify-end p-0 pt-4">
