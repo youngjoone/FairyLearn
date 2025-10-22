@@ -11,15 +11,14 @@ const AuthCallback: React.FC = () => {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const accessToken = params.get('accessToken');
-    const refreshToken = params.get('refreshToken');
 
-    if (accessToken && refreshToken) {
-      setTokens(accessToken, refreshToken); // Store both tokens
+    if (accessToken) {
+      setTokens(accessToken);
       login(); // Update auth state
       navigate('/'); // Redirect to home page
     } else {
       // Handle error or no token case
-      console.error('Access token or refresh token not found in callback URL query parameters');
+      console.error('Access token not found in callback URL query parameters');
       clearTokens(); // Clear any partial tokens
       navigate('/login'); // Redirect to login page on error
     }

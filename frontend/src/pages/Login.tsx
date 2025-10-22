@@ -18,11 +18,13 @@ export default function Login() {
     setError(null);
 
     try {
-      const response = await axios.post(`${API_BASE}/auth/login`, { email, password });
-      // Assuming the backend returns access and refresh tokens
-      setTokens(response.data.accessToken, response.data.refreshToken);
+      const response = await axios.post(
+        `${API_BASE}/auth/login`,
+        { email, password },
+        { withCredentials: true }
+      );
+      setTokens(response.data.accessToken);
       login();
-      alert('Login successful!'); // Replace with a proper toast notification
       navigate('/'); // Redirect to home page
     } catch (err: any) {
       if (axios.isAxiosError(err) && err.response) {

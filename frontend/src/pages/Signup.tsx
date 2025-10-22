@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useToast } from '@/components/ui/ToastProvider';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -11,6 +12,7 @@ export default function Signup() {
   const [nickname, setNickname] = useState('');
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { addToast } = useToast();
 
   const validatePassword = (password: string) => {
     const regex = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
@@ -33,7 +35,7 @@ export default function Signup() {
 
     try {
       await axios.post(`${API_BASE}/auth/signup`, { email, password, nickname });
-      alert('Signup successful!'); // Replace with a proper toast notification
+      addToast('회원가입이 완료되었습니다. 로그인해 주세요.', 'success');
       navigate('/login');
     } catch (err: any) {
       if (axios.isAxiosError(err) && err.response) {

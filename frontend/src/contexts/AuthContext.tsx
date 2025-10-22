@@ -1,13 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import useApi from '@/hooks/useApi';
-import { getAccess, clearTokens } from '../lib/auth';
+import { clearTokens, setTokens } from '../lib/auth';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 interface AuthContextType {
   isLoggedIn: boolean;
   profile: UserProfile | null;
   login: () => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
 
@@ -41,11 +43,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [fetchWithErrorHandler]);
 
   useEffect(() => {
-    const token = getAccess();
-    setIsLoggedIn(!!token);
-    if (token) {
-      loadProfile();
-    }
+    const bootstrap = async () => {
+      try {
+        const { data } = await axios.post(
+          `${API_BASE}/auth/refresh`,
+          {},
+          { withCredentials: true }
+        );
+        if (data?.accessToken) {
+          setTokens(data.accessToken);
+          setIsLoggedIn(true);
+          await loadProfile();
+        } else {
+          clearTokens();
+          setIsLoggedIn(false);
+          setProfile(null);
+        }
+      } catch (error) {
+        clearTokens();
+        setIsLoggedIn(false);
+        setProfile(null);
+      }
+    };
+    bootstrap();
   }, [loadProfile]);
 
   const login = useCallback(() => {
@@ -53,10 +73,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadProfile();
   }, [loadProfile]);
 
-  const logout = useCallback(() => {
-    clearTokens();
-    setIsLoggedIn(false);
-    setProfile(null);
+  const logout = useCallback(async () => {
+    try {
+      await axios.post(`${API_BASE}/auth/logout`, {}, { withCredentials: true });
+    } catch (error) {
+      console.warn('Failed to revoke refresh token on logout', error);
+    } finally {
+      clearTokens();
+      setIsLoggedIn(false);
+      setProfile(null);
+    }
   }, []);
 
   const refreshProfile = useCallback(async () => {

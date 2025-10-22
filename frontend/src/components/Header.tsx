@@ -9,8 +9,8 @@ const Header: React.FC = () => {
   const navigate = useNavigate();
   const { isLoggedIn, profile, logout } = useAuth();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/'); // Redirect to home or login page after logout
   };
 

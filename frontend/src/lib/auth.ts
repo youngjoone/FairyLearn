@@ -1,15 +1,13 @@
-export const ACCESS_KEY = 'fairylearn_access';
-export const REFRESH_KEY = 'fairylearn_refresh';
+import { getAccessToken, setAccessToken, clearAccessToken } from './tokenStore';
 
-export function setTokens(access?: string, refresh?: string) {
-  if (access) localStorage.setItem(ACCESS_KEY, access);
-  if (refresh) localStorage.setItem(REFRESH_KEY, refresh);
+export function setTokens(access?: string) {
+  setAccessToken(access ?? '');
 }
 
-export function getAccess() { return localStorage.getItem(ACCESS_KEY) || ''; }
-export function getRefresh() { return localStorage.getItem(REFRESH_KEY) || ''; }
+export function getAccess() {
+  return getAccessToken();
+}
 
 export function clearTokens() {
-  localStorage.removeItem(ACCESS_KEY);
-  localStorage.removeItem(REFRESH_KEY);
+  clearAccessToken();
 }
