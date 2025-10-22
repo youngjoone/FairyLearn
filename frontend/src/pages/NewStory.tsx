@@ -71,6 +71,33 @@ const artStyleOptions = [
     { value: '빈티지 스토리북 펜과 잉크 스타일', label: '빈티지 스토리북' },
 ];
 
+const moralSamples = [
+    '친구와 함께하면 어떤 어려움도 이겨낼 수 있다는 교훈을 주세요.',
+    '정직하게 말하는 것이 가장 좋은 선택임을 깨닫게 해주세요.',
+    '서로 배려하고 돕는 마음의 중요성을 느끼게 해주세요.',
+    '실수해도 다시 도전하면 더 성장할 수 있다는 메시지를 전해주세요.',
+];
+
+const requiredElementSamples = [
+    '마법 열쇠',
+    '구름 위 성',
+    '빛나는 지팡이',
+    '시간을 알려주는 별시계',
+    '무지개 다리',
+];
+
+const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+const pickRandom = <T,>(items: T[]): T => items[Math.floor(Math.random() * items.length)];
+
+const pickMultiple = <T,>(items: T[], count: number): T[] => {
+    const shuffled = [...items].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, Math.max(0, Math.min(count, items.length)));
+};
+
+const randomTitlePrefixes = ['반짝이는', '신비로운', '용감한', '포근한', '즐거운'];
+const randomTitleSubjects = ['모험', '이야기', '비밀', '여행', '꿈'];
+
 const NewStory: React.FC = () => {
     const navigate = useNavigate();
     const { fetchWithErrorHandler } = useApi();
@@ -91,7 +118,6 @@ const NewStory: React.FC = () => {
     const [characters, setCharacters] = useState<CharacterProfile[]>([]);
     const [selectedCharacterIds, setSelectedCharacterIds] = useState<number[]>([]);
     const [isLoadingCharacters, setIsLoadingCharacters] = useState<boolean>(false);
-    const [isFetchingRandom, setIsFetchingRandom] = useState<boolean>(false);
     const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
     const [moral, setMoral] = useState<string>('');
     const [requiredElementsInput, setRequiredElementsInput] = useState<string>('');
@@ -105,6 +131,76 @@ const NewStory: React.FC = () => {
         const backendBase = (import.meta.env.VITE_BACKEND_BASE_URL as string | undefined)?.replace(/\/$/, '') || 'http://localhost:8080';
         const normalizedPath = path.startsWith('/') ? path : `/${path}`;
         return `${backendBase}${normalizedPath}`;
+    };
+
+    const buildRequestPayload = (params: {
+        title?: string;
+        ageRange: string;
+        topics: string[];
+        objectives: string[];
+        minPages: number;
+        language: string;
+        characterIds: number[];
+        moral?: string;
+        requiredElements?: string[];
+        artStyle?: string;
+    }) => {
+        const selectedCharacterProfiles = characters.filter(char => params.characterIds.includes(char.id));
+        const characterVisuals = selectedCharacterProfiles.map(char => ({
+            id: char.id,
+            name: char.name,
+            slug: char.slug,
+            visualDescription: char.visualDescription || '',
+            imageUrl: buildAssetUrl(char.imageUrl) || '',
+            modelingStatus: char.modelingStatus || undefined,
+        }));
+
+        const payload: Record<string, unknown> = {
+            title: params.title || undefined,
+            ageRange: params.ageRange,
+            topics: params.topics,
+            objectives: params.objectives,
+            minPages: params.minPages,
+            language: params.language,
+            characterIds: params.characterIds,
+            characterVisuals,
+        };
+
+        if (params.moral) {
+            payload.moral = params.moral;
+        }
+        if (params.requiredElements && params.requiredElements.length > 0) {
+            payload.requiredElements = params.requiredElements;
+        }
+        if (params.artStyle) {
+            payload.artStyle = params.artStyle;
+        }
+
+        return payload;
+    };
+
+    const submitStory = async (payload: Record<string, unknown>, successMessage: string) => {
+        setIsSubmitting(true);
+        try {
+            const response = await fetchWithErrorHandler<{ id: number }>('http://localhost:8080/api/stories', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+            addToast(successMessage, 'success');
+            navigate(`/stories/${response.id}`);
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            if (errorMessage.includes('STORAGE_LIMIT_EXCEEDED')) {
+                addToast('저장 공간이 부족합니다. 기존 동화를 삭제하거나 업그레이드하세요.', 'error');
+            } else {
+                addToast(`동화 생성 실패: ${errorMessage}`, 'error');
+            }
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     useEffect(() => {
@@ -175,23 +271,6 @@ const NewStory: React.FC = () => {
         });
     };
 
-    const handleRandomCharacterSelection = async () => {
-        setIsFetchingRandom(true);
-        try {
-            const randomCharacters = await fetchWithErrorHandler<CharacterProfile[]>('public/characters/random?count=2');
-            if (randomCharacters && randomCharacters.length > 0) {
-                setSelectedCharacterIds(randomCharacters.map(c => c.id));
-                addToast('랜덤 캐릭터가 선택되었습니다!', 'success');
-            } else {
-                addToast('랜덤 캐릭터를 불러오지 못했습니다.', 'error');
-            }
-        } catch (err) {
-            addToast(`랜덤 캐릭터 선택 실패: ${err instanceof Error ? err.message : String(err)}`, 'error');
-        } finally {
-            setIsFetchingRandom(false);
-        }
-    };
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!validateForm()) {
@@ -199,66 +278,100 @@ const NewStory: React.FC = () => {
             return;
         }
 
-        setIsSubmitting(true);
-        try {
-            const selectedCharacterProfiles = characters.filter(char => selectedCharacterIds.includes(char.id));
-            const characterVisuals = selectedCharacterProfiles.map(char => ({
-                id: char.id,
-                name: char.name,
-                slug: char.slug,
-                visualDescription: char.visualDescription || '',
-                imageUrl: char.imageUrl || '',
-                modelingStatus: char.modelingStatus || undefined,
-            }));
+        const trimmedMoral = moral.trim();
+        const requiredElements = requiredElementsInput
+            .split(/[\n,]/)
+            .map(item => item.trim())
+            .filter(item => item.length > 0);
 
-            const trimmedMoral = moral.trim();
-            const requiredElements = requiredElementsInput
-                .split(/[\n,]/)
-                .map(item => item.trim())
-                .filter(item => item.length > 0);
+        const payload = buildRequestPayload({
+            title: title || undefined,
+            ageRange,
+            topics,
+            objectives,
+            minPages,
+            language,
+            characterIds: selectedCharacterIds,
+            moral: trimmedMoral || undefined,
+            requiredElements,
+            artStyle: artStyle || undefined,
+        });
 
-            const requestBody: Record<string, unknown> = {
-                title: title || undefined, // Send title only if not empty
-                ageRange,
-                topics,
-                objectives,
-                minPages,
-                language,
-                characterIds: selectedCharacterIds,
-                characterVisuals: characterVisuals, // Added
-            };
-
-            if (trimmedMoral) {
-                requestBody.moral = trimmedMoral;
-            }
-            if (requiredElements.length > 0) {
-                requestBody.requiredElements = requiredElements;
-            }
-            if (artStyle) {
-                requestBody.artStyle = artStyle;
-            }
-
-            const response = await fetchWithErrorHandler<{ id: number }>('http://localhost:8080/api/stories', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(requestBody),
-            });
-            addToast('동화가 성공적으로 생성되었습니다!', 'success');
-            navigate(`/stories/${response.id}`);
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : String(err);
-            if (errorMessage.includes('STORAGE_LIMIT_EXCEEDED')) {
-                addToast('저장 공간이 부족합니다. 기존 동화를 삭제하거나 업그레이드하세요.', 'error');
-            } else {
-                addToast(`동화 생성 실패: ${errorMessage}`, 'error');
-            }
-        } finally {
-            setIsSubmitting(false);
-        }
+        await submitStory(payload, '동화가 성공적으로 생성되었습니다!');
     };
 
+    const handleRandomStory = async () => {
+        if (isSubmitting) {
+            return;
+        }
+        if (quota && quota.used >= quota.limit) {
+            addToast('저장 공간이 부족합니다. 기존 동화를 삭제하거나 업그레이드하세요.', 'error');
+            return;
+        }
+        if (isLoadingCharacters) {
+            addToast('캐릭터 목록을 불러오는 중입니다. 잠시만 기다려 주세요.', 'info');
+            return;
+        }
+
+        const randomAgeRange = pickRandom(ageRanges);
+        const randomTopics = pickMultiple(
+            topicsOptions.map(option => option.value),
+            randomInt(1, Math.min(3, topicsOptions.length))
+        );
+        const randomObjectives = pickMultiple(
+            objectivesOptions.map(option => option.value),
+            randomInt(1, Math.min(2, objectivesOptions.length))
+        );
+        const randomMinPages = randomInt(10, 20);
+        const randomLanguage = pickRandom(languages).value;
+
+        const availableCharacterIds = characters.map(char => char.id);
+        const randomCharacterIds = availableCharacterIds.length > 0
+            ? pickMultiple(availableCharacterIds, Math.min(2, availableCharacterIds.length))
+            : [];
+
+        const includeTitle = Math.random() < 0.6;
+        const randomTitle = includeTitle ? `${pickRandom(randomTitlePrefixes)} ${pickRandom(randomTitleSubjects)}` : '';
+
+        const includeMoral = Math.random() < 0.65;
+        const randomMoral = includeMoral ? pickRandom(moralSamples) : '';
+
+        const includeRequiredElements = Math.random() < 0.5;
+        const randomRequiredElements = includeRequiredElements
+            ? pickMultiple(requiredElementSamples, randomInt(1, Math.min(3, requiredElementSamples.length)))
+            : [];
+
+        const includeArtStyle = Math.random() < 0.6;
+        const randomArtStyleValue = includeArtStyle ? pickRandom(artStyleOptions).value : '';
+
+        setAgeRange(randomAgeRange);
+        setTopics(randomTopics);
+        setObjectives(randomObjectives);
+        setMinPages(randomMinPages);
+        setLanguage(randomLanguage);
+        setSelectedCharacterIds(randomCharacterIds);
+        setTitle(randomTitle);
+        setMoral(randomMoral);
+        setRequiredElementsInput(randomRequiredElements.join(', '));
+        setArtStyle(randomArtStyleValue);
+        setShowAdvanced(true);
+        setFormErrors({});
+
+        const payload = buildRequestPayload({
+            title: randomTitle || undefined,
+            ageRange: randomAgeRange,
+            topics: randomTopics,
+            objectives: randomObjectives,
+            minPages: randomMinPages,
+            language: randomLanguage,
+            characterIds: randomCharacterIds,
+            moral: randomMoral || undefined,
+            requiredElements: randomRequiredElements,
+            artStyle: randomArtStyleValue || undefined,
+        });
+
+        await submitStory(payload, '랜덤 동화가 생성되었습니다!');
+    };
     const isSubmitDisabled = isSubmitting || (quota ? quota.used >= quota.limit : false);
 
     if (isLoadingQuota) {
@@ -285,6 +398,17 @@ const NewStory: React.FC = () => {
                     </div>
                 )}
 
+                <div className="flex justify-end mb-4">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleRandomStory}
+                        disabled={isSubmitting || (quota ? quota.used >= quota.limit : false) || isLoadingCharacters}
+                    >
+                        랜덤 동화 만들기
+                    </Button>
+                </div>
+
                 <Card>
                     <CardHeader>
                         <h2 className="text-xl font-semibold">동화 생성 파라미터</h2>
@@ -307,16 +431,6 @@ const NewStory: React.FC = () => {
                             <div>
                                 <div className="flex items-center justify-between mb-2">
                                     <span className="block text-sm font-medium text-gray-700">캐릭터 선택 (최대 2명)</span>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={handleRandomCharacterSelection}
-                                        disabled={isFetchingRandom}
-                                        isLoading={isFetchingRandom}
-                                    >
-                                        랜덤 캐릭터
-                                    </Button>
                                     <span className="text-xs text-gray-500">{selectedCharacterIds.length}/2 선택됨</span>
                                 </div>
                                 {isLoadingCharacters ? (
