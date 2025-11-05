@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import useApi from '@/hooks/useApi';
 import { Card, CardContent, CardHeader, CardFooter } from '@/components/ui/Card';
@@ -15,6 +16,10 @@ import Skeleton from '@/components/ui/Skeleton';
 interface StorageQuota {
     limit: number;
     used: number;
+}
+
+interface WalletSummary {
+    balance: number;
 }
 
 interface CharacterProfile {
@@ -123,6 +128,11 @@ const NewStory: React.FC = () => {
     const [requiredElementsInput, setRequiredElementsInput] = useState<string>('');
     const [artStyle, setArtStyle] = useState<string>('');
 
+    const [walletBalance, setWalletBalance] = useState<number | null>(null);
+    const [isLoadingWallet, setIsLoadingWallet] = useState<boolean>(true);
+
+    const HEART_COST_PER_STORY = 1;
+
     const buildAssetUrl = (path?: string | null): string | null => {
         if (!path) return null;
         if (/^https?:\/\//i.test(path)) {
@@ -180,23 +190,36 @@ const NewStory: React.FC = () => {
     };
 
     const submitStory = async (payload: Record<string, unknown>, successMessage: string) => {
+        if (walletBalance !== null && walletBalance < HEART_COST_PER_STORY) {
+            addToast('하트가 부족합니다. 결제 관리에서 충전 후 다시 시도해주세요.', 'error');
+            navigate('/me/billing');
+            return;
+        }
+
         setIsSubmitting(true);
         try {
-            const response = await fetchWithErrorHandler<{ id: number }>('http://localhost:8080/api/stories', {
+            const response = await fetchWithErrorHandler<{ id: number }>('stories', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload),
+                body: payload,
             });
             addToast(successMessage, 'success');
+            setWalletBalance(prev => (prev !== null ? Math.max(prev - HEART_COST_PER_STORY, 0) : prev));
             navigate(`/stories/${response.id}`);
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : String(err);
-            if (errorMessage.includes('STORAGE_LIMIT_EXCEEDED')) {
-                addToast('저장 공간이 부족합니다. 기존 동화를 삭제하거나 업그레이드하세요.', 'error');
+            if (axios.isAxiosError(err)) {
+                const apiError = (err.response?.data ?? {}) as { message?: string; code?: string };
+                if (err.response?.status === 402) {
+                    addToast('하트가 부족합니다. 결제 관리에서 충전 후 다시 시도해주세요.', 'error');
+                    navigate('/me/billing');
+                } else if (apiError.code === 'STORAGE_LIMIT_EXCEEDED') {
+                    addToast('저장 공간이 부족합니다. 기존 동화를 삭제하거나 업그레이드하세요.', 'error');
+                } else {
+                    const message = apiError.message || err.message || '동화 생성에 실패했습니다.';
+                    addToast(`동화 생성 실패: ${message}`, 'error');
+                }
             } else {
-                addToast(`동화 생성 실패: ${errorMessage}`, 'error');
+                const message = err instanceof Error ? err.message : String(err);
+                addToast(`동화 생성 실패: ${message}`, 'error');
             }
         } finally {
             setIsSubmitting(false);
@@ -207,21 +230,29 @@ const NewStory: React.FC = () => {
         const token = getAccess();
         if (!token) {
             addToast('로그인이 필요한 서비스입니다.', 'error');
-            // navigate('/'); // Assuming Home page handles redirect
             return;
         }
+
+        let cancelled = false;
 
         const fetchQuota = async () => {
             setIsLoadingQuota(true);
             try {
                 const quotaData = await fetchWithErrorHandler<StorageQuota>('storage/me');
-                setQuota(quotaData);
+                if (!cancelled) {
+                    setQuota(quotaData);
+                }
             } catch (err) {
-                addToast(`저장 공간 정보 로드 실패: ${err instanceof Error ? err.message : String(err)}`, 'error');
+                if (!cancelled) {
+                    addToast(`저장 공간 정보 로드 실패: ${err instanceof Error ? err.message : String(err)}`, 'error');
+                }
             } finally {
-                setIsLoadingQuota(false);
+                if (!cancelled) {
+                    setIsLoadingQuota(false);
+                }
             }
         };
+
         const fetchCharacters = async () => {
             setIsLoadingCharacters(true);
             try {
@@ -233,21 +264,52 @@ const NewStory: React.FC = () => {
                     persona: character.persona ?? null,
                     catchphrase: character.catchphrase ?? null,
                     promptKeywords: character.promptKeywords ?? character.prompt_keywords ?? null,
-                    imageUrl: character.imageUrl ?? character.image_url ?? null, // Updated
-                    visualDescription: character.visualDescription ?? character.visual_description ?? null, // Added
+                    imageUrl: character.imageUrl ?? character.image_url ?? null,
+                    visualDescription: character.visualDescription ?? character.visual_description ?? null,
                     modelingStatus: character.modelingStatus ?? character.modeling_status ?? null,
                 }));
-                setCharacters(normalized);
+                if (!cancelled) {
+                    setCharacters(normalized);
+                }
             } catch (err) {
                 console.error('캐릭터 목록 불러오기 실패', err);
-                addToast(`캐릭터 목록을 불러오지 못했어요: ${err instanceof Error ? err.message : String(err)}`, 'error');
+                if (!cancelled) {
+                    addToast(`캐릭터 목록을 불러오지 못했어요: ${err instanceof Error ? err.message : String(err)}`, 'error');
+                }
             } finally {
-                setIsLoadingCharacters(false);
+                if (!cancelled) {
+                    setIsLoadingCharacters(false);
+                }
             }
         };
+
+        const fetchWallet = async () => {
+            setIsLoadingWallet(true);
+            try {
+                const wallet = await fetchWithErrorHandler<WalletSummary>('wallets/me');
+                if (!cancelled) {
+                    setWalletBalance(wallet.balance);
+                }
+            } catch (err) {
+                console.error('하트 잔액 조회 실패', err);
+                if (!cancelled) {
+                    addToast('하트 잔액을 불러오는 중 문제가 발생했습니다.', 'error');
+                }
+            } finally {
+                if (!cancelled) {
+                    setIsLoadingWallet(false);
+                }
+            }
+        };
+
         fetchQuota();
         fetchCharacters();
-    }, [fetchWithErrorHandler, addToast, navigate]);
+        fetchWallet();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [fetchWithErrorHandler, addToast]);
 
     const validateForm = () => {
         const errors: { [key: string]: string } = {};
@@ -306,6 +368,11 @@ const NewStory: React.FC = () => {
         }
         if (quota && quota.used >= quota.limit) {
             addToast('저장 공간이 부족합니다. 기존 동화를 삭제하거나 업그레이드하세요.', 'error');
+            return;
+        }
+        if (walletBalance !== null && walletBalance < HEART_COST_PER_STORY) {
+            addToast('하트가 부족합니다. 결제 관리에서 충전 후 다시 시도해주세요.', 'error');
+            navigate('/me/billing');
             return;
         }
         if (isLoadingCharacters) {
@@ -372,9 +439,9 @@ const NewStory: React.FC = () => {
 
         await submitStory(payload, '랜덤 동화가 생성되었습니다!');
     };
-    const isSubmitDisabled = isSubmitting || (quota ? quota.used >= quota.limit : false);
+    const isSubmitDisabled = isSubmitting || (quota ? quota.used >= quota.limit : false) || (walletBalance !== null && walletBalance < HEART_COST_PER_STORY);
 
-    if (isLoadingQuota) {
+    if (isLoadingQuota || isLoadingWallet) {
         return (
             <div className="p-4">
                 <Skeleton className="h-10 w-full mb-4" />
@@ -394,6 +461,14 @@ const NewStory: React.FC = () => {
                         저장 공간: {quota.used} / {quota.limit}
                         {quota.used >= quota.limit && (
                             <span className="ml-2 font-semibold text-red-600"> (공간 부족! 업그레이드 필요)</span>
+                        )}
+                    </div>
+                )}
+                {walletBalance !== null && (
+                    <div className="mb-4 p-2 bg-pink-100 text-pink-800 rounded-md">
+                        보유 하트: {walletBalance.toLocaleString('ko-KR')}개
+                        {walletBalance < HEART_COST_PER_STORY && (
+                            <span className="ml-2 font-semibold text-red-600"> (하트 부족! 충전이 필요해요)</span>
                         )}
                     </div>
                 )}

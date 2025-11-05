@@ -8,6 +8,7 @@ import SharedStoriesBoard from '@/pages/SharedStoriesBoard';
 import AuthCallback from '@/pages/AuthCallback';
 import AdminAnalytics from '@/pages/AdminAnalytics';
 import MyProfile from '@/pages/MyProfile';
+import BillingManagement from '@/pages/BillingManagement';
 
 import Signup from '@/pages/Signup';
 import Login from '@/pages/Login';
@@ -41,6 +42,7 @@ function App() {
               
               <Route path="/admin/analytics" element={<AdminAnalytics />} />
               <Route path="/me/profile" element={<MyProfile />} />
+              <Route path="/me/billing" element={<BillingManagement />} />
               
               <Route path="/signup" element={<Signup />} />
               <Route path="/login" element={<Login />} />

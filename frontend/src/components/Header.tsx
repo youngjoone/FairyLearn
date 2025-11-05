@@ -23,6 +23,7 @@ const Header: React.FC = () => {
         {isLoggedIn ? (
           <>
             <Link to="/me/profile" className="hover:text-primary">내 프로필</Link>
+            <Link to="/me/billing" className="hover:text-primary">결제 관리</Link>
             <span className="text-sm text-muted-foreground whitespace-nowrap">
               {profile ? `${(profile.nickname || profile.email)}님 환영합니다!` : '로그인 중...'}
             </span>

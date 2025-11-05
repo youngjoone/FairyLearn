@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import useApi from '@/hooks/useApi';
 import Meta from '@/lib/seo';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/components/ui/ToastProvider';
 
 type AiHealthResponse = {
   healthy: boolean;
@@ -14,10 +16,14 @@ type AiHealthResponse = {
 
 const Home: React.FC = () => {
   const { fetchWithErrorHandler } = useApi();
+  const { isLoggedIn } = useAuth();
+  const { addToast } = useToast();
   const [backendStatusText, setBackendStatusText] = useState<string>('');
   const [healthStatus, setHealthStatus] = useState<AiHealthResponse | null>(null);
   const [healthError, setHealthError] = useState<string>('');
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [isLoadingWallet, setIsLoadingWallet] = useState(false);
 
   const handleCheckHealth = async () => {
     setIsCheckingHealth(true);
@@ -41,6 +47,42 @@ const Home: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setWalletBalance(null);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchWallet = async () => {
+      setIsLoadingWallet(true);
+      try {
+        const response = await fetchWithErrorHandler<any>('wallets/me');
+        if (cancelled) {
+          return;
+        }
+        const rawBalance = response?.balance ?? 0;
+        const parsedBalance = Number(rawBalance);
+        setWalletBalance(Number.isNaN(parsedBalance) ? 0 : parsedBalance);
+      } catch (error) {
+        if (!cancelled) {
+          addToast('하트 잔액을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.', 'error');
+          setWalletBalance(0);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingWallet(false);
+        }
+      }
+    };
+
+    fetchWallet();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, fetchWithErrorHandler, addToast]);
+
   return (
     <>
       <Meta
@@ -48,6 +90,22 @@ const Home: React.FC = () => {
         description="당신의 성향을 분석하고 감정에 기반한 시와 이미지를 생성해주는 서비스입니다. 자신을 더 깊이 이해하고 창의적인 영감을 얻어보세요."
       />
       <div>
+        <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+          <span role="img" aria-label="heart" className="text-base">💗</span>
+          {isLoggedIn ? (
+            <span>
+              보유 하트 {isLoadingWallet ? '조회 중...' : <strong className="text-foreground">{(walletBalance ?? 0).toLocaleString('ko-KR')}개</strong>}
+            </span>
+          ) : (
+            <span>로그인 후 하트 잔액을 확인할 수 있어요.</span>
+          )}
+          <Link
+            to={isLoggedIn ? '/me/billing' : '/login'}
+            className="inline-flex items-center rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            {isLoggedIn ? '충전하기' : '로그인하기'}
+          </Link>
+        </div>
         <h1>홈 페이지</h1>
         
         <hr />
