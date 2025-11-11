@@ -15,6 +15,7 @@ interface StoryListItem {
     language: string;
     status: string;
     createdAt: string;
+    coverImageUrl?: string | null;
 }
 
 interface StorageQuota {
@@ -40,7 +41,11 @@ const StoriesList: React.FC = () => {
                 ]);
                 
                 if (Array.isArray(storiesData)) {
-                    setStories(storiesData);
+                    const normalized = storiesData.map(item => ({
+                        ...item,
+                        coverImageUrl: (item as any).coverImageUrl ?? (item as any).cover_image_url ?? null,
+                    }));
+                    setStories(normalized);
                 } else {
                     console.error("API response for stories is not an array:", storiesData);
                     setStories([]); // Set to empty array to prevent crash
@@ -109,9 +114,30 @@ const StoriesList: React.FC = () => {
                             <Card key={story.id}>
                                 <CardContent>
                                     <Link to={`/stories/${story.id}`} className="block">
-                                        <h3 className="text-lg font-semibold">{story.title}</h3>
-                                        <p className="text-muted-foreground">생성일: {new Date(story.createdAt).toLocaleString()}</p>
-                                        <p className="text-muted-foreground">상태: {story.status}</p>
+                                        <div className="flex gap-4">
+                                            <div className="w-24 h-24 flex-shrink-0 rounded-md border border-gray-200 overflow-hidden bg-muted">
+                                                {(() => {
+                                                    const coverUrl = buildAssetUrl(story.coverImageUrl);
+                                                    return coverUrl ? (
+                                                        <img
+                                                            src={coverUrl}
+                                                            alt={`${story.title} 표지`}
+                                                            className="w-full h-full object-cover"
+                                                            loading="lazy"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center text-sm text-muted-foreground">
+                                                            표지 준비 중
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                            <div className="flex-1">
+                                                <h3 className="text-lg font-semibold">{story.title}</h3>
+                                                <p className="text-muted-foreground">생성일: {new Date(story.createdAt).toLocaleString()}</p>
+                                                <p className="text-muted-foreground">상태: {story.status}</p>
+                                            </div>
+                                        </div>
                                     </Link>
                                 </CardContent>
                             </Card>
@@ -124,3 +150,12 @@ const StoriesList: React.FC = () => {
 };
 
 export default StoriesList;
+    const buildAssetUrl = (path?: string | null): string | null => {
+        if (!path) return null;
+        if (/^https?:\/\//i.test(path)) {
+            return path;
+        }
+        const backendBase = (import.meta.env.VITE_BACKEND_BASE_URL as string | undefined)?.replace(/\/$/, '') || 'http://localhost:8080';
+        const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+        return `${backendBase}${normalizedPath}`;
+    };

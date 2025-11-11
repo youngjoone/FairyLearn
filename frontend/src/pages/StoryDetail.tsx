@@ -48,6 +48,7 @@ interface StoryDetailData {
     manageable?: boolean;
     authorNickname?: string | null;
     authorId?: number | null;
+    coverImageUrl?: string | null;
 }
 
 interface SharedStoryDetailResponse {
@@ -134,6 +135,8 @@ const StoryDetail: React.FC = () => {
               }))
             : [];
 
+        const coverImageUrl = raw.coverImageUrl ?? raw.cover_image_url ?? null;
+
         return {
             id: raw.id,
             title: raw.title,
@@ -152,6 +155,7 @@ const StoryDetail: React.FC = () => {
             manageable: raw.manageable,
             authorNickname: raw.authorNickname ?? raw.author_nickname ?? null,
             authorId: raw.authorId ?? raw.author_id ?? null,
+            coverImageUrl,
         };
     };
 
@@ -512,6 +516,17 @@ const StoryDetail: React.FC = () => {
                         )}
                     </CardHeader>
                     <CardContent>
+                        {(() => {
+                            const coverUrl = buildAssetUrl(story.coverImageUrl);
+                            return coverUrl ? (
+                                <img
+                                    src={coverUrl}
+                                    alt={`${story.title} 표지`}
+                                    className="w-full max-h-96 object-cover rounded-lg mb-6 shadow"
+                                    loading="lazy"
+                                />
+                            ) : null;
+                        })()}
                         {story.characters && story.characters.length > 0 && (
                             <div className="mb-6">
                                 <h2 className="text-lg font-semibold mb-2">등장 캐릭터</h2>

@@ -14,6 +14,7 @@ interface SharedStorySummary {
     preview: string;
     likeCount: number;
     commentCount: number;
+    coverImageUrl?: string | null;
 }
 
 const SharedStoriesBoard: React.FC = () => {
@@ -36,6 +37,7 @@ const SharedStoriesBoard: React.FC = () => {
                         shareSlug: item.shareSlug ?? (item as any).share_slug ?? '',
                         likeCount: item.likeCount ?? (item as any).like_count ?? 0,
                         commentCount: item.commentCount ?? (item as any).comment_count ?? 0,
+                        coverImageUrl: item.coverImageUrl ?? (item as any).cover_image_url ?? null,
                     }))
                     .filter(item => !!item.shareSlug);
                 setItems(normalized);
@@ -89,6 +91,16 @@ const SharedStoriesBoard: React.FC = () => {
         );
     }
 
+    const buildAssetUrl = (path?: string | null): string | null => {
+        if (!path) return null;
+        if (/^https?:\/\//i.test(path)) {
+            return path;
+        }
+        const backendBase = (import.meta.env.VITE_BACKEND_BASE_URL as string | undefined)?.replace(/\/$/, '') || 'http://localhost:8080';
+        const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+        return `${backendBase}${normalizedPath}`;
+    };
+
     return (
         <>
             <Meta title="공유된 동화 게시판 — FairyLearn" description="사용자들이 공유한 동화를 모아보세요." />
@@ -104,6 +116,17 @@ const SharedStoriesBoard: React.FC = () => {
                                 </p>
                             </CardHeader>
                             <CardContent>
+                                {(() => {
+                                    const coverUrl = buildAssetUrl(item.coverImageUrl);
+                                    return coverUrl ? (
+                                        <img
+                                            src={coverUrl}
+                                            alt={`${item.title} 표지`}
+                                            className="w-full h-56 object-cover rounded-md mb-4 shadow"
+                                            loading="lazy"
+                                        />
+                                    ) : null;
+                                })()}
                                 <p className="text-sm text-muted-foreground whitespace-pre-wrap mb-4">
                                     {item.preview || '프리뷰가 아직 준비되지 않았습니다.'}
                                 </p>
