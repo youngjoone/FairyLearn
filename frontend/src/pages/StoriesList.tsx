@@ -4,8 +4,8 @@ import useApi from '@/hooks/useApi';
 import { Card, CardContent } from '@/components/ui/Card';
 import Skeleton from '@/components/ui/Skeleton';
 import EmptyState from '@/components/ui/EmptyState';
+import Button from '@/components/ui/Button';
 import Meta from '@/lib/seo';
-import { getAccess } from '@/lib/auth';
 import { useToast } from '@/components/ui/ToastProvider';
 
 interface StoryListItem {
@@ -30,6 +30,8 @@ const StoriesList: React.FC = () => {
     const [quota, setQuota] = useState<StorageQuota | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string>('');
+    const [selectedStories, setSelectedStories] = useState<Set<number>>(new Set());
+    const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -62,6 +64,54 @@ const StoriesList: React.FC = () => {
 
         fetchData();
     }, [fetchWithErrorHandler, addToast]);
+
+    const selectedCount = selectedStories.size;
+    const allSelected = stories.length > 0 && selectedCount === stories.length;
+
+    const toggleStorySelection = (storyId: number) => {
+        setSelectedStories(prev => {
+            const next = new Set(prev);
+            if (next.has(storyId)) {
+                next.delete(storyId);
+            } else {
+                next.add(storyId);
+            }
+            return next;
+        });
+    };
+
+    const handleSelectAll = () => {
+        if (stories.length === 0) return;
+        if (allSelected) {
+            setSelectedStories(new Set());
+        } else {
+            setSelectedStories(new Set(stories.map(story => story.id)));
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        if (selectedCount === 0) return;
+        if (!window.confirm(`${selectedCount}개의 동화를 삭제하시겠습니까?`)) {
+            return;
+        }
+        setIsBulkDeleting(true);
+        const ids = Array.from(selectedStories);
+        try {
+            await fetchWithErrorHandler('/stories/bulk-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ storyIds: ids }),
+            });
+            setStories(prev => prev.filter(story => !selectedStories.has(story.id)));
+            setQuota(prev => (prev ? { ...prev, used: Math.max(0, prev.used - ids.length) } : prev));
+            setSelectedStories(new Set());
+            addToast('선택한 동화를 삭제했습니다.', 'success');
+        } catch (err) {
+            addToast(`동화 삭제 실패: ${err instanceof Error ? err.message : String(err)}`, 'error');
+        } finally {
+            setIsBulkDeleting(false);
+        }
+    };
 
     if (isLoading) {
         return (
@@ -97,11 +147,40 @@ const StoriesList: React.FC = () => {
             <Meta title="내 동화 — FairyLearn" description="내가 만든 동화 목록" />
             <div className="p-4">
                 <h1 className="text-2xl font-bold mb-4">내 동화</h1>
-                {quota && (
-                    <div className="mb-4 p-2 bg-blue-100 text-blue-800 rounded-md">
-                        저장 공간: {quota.used} / {quota.limit}
-                    </div>
-                )}
+                <div className="flex flex-col gap-3 mb-4 md:flex-row md:items-center md:justify-between">
+                    {quota && (
+                        <div className="p-2 bg-blue-100 text-blue-800 rounded-md">
+                            저장 공간: {quota.used} / {quota.limit}
+                        </div>
+                    )}
+                    {stories.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-3">
+                            <label className="flex items-center gap-1 text-sm text-muted-foreground">
+                                <input
+                                    type="checkbox"
+                                    className="h-4 w-4"
+                                    checked={allSelected}
+                                    onChange={handleSelectAll}
+                                />
+                                전체 선택
+                            </label>
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                isLoading={isBulkDeleting}
+                                disabled={selectedCount === 0 || isBulkDeleting}
+                                onClick={handleBulkDelete}
+                            >
+                                선택 삭제
+                            </Button>
+                            {selectedCount > 0 && (
+                                <span className="text-sm text-muted-foreground">
+                                    {selectedCount}개 선택됨
+                                </span>
+                            )}
+                        </div>
+                    )}
+                </div>
                 {stories.length === 0 ? (
                     <EmptyState
                         title="저장된 동화가 없습니다."
@@ -110,11 +189,20 @@ const StoriesList: React.FC = () => {
                     />
                 ) : (
                     <div className="flex flex-col gap-4">
-                        {stories.map(story => (
-                            <Card key={story.id}>
-                                <CardContent>
-                                    <Link to={`/stories/${story.id}`} className="block">
-                                        <div className="flex gap-4">
+                        {stories.map(story => {
+                            const isSelected = selectedStories.has(story.id);
+                            return (
+                                <Card key={story.id}>
+                                    <CardContent className="flex gap-4 items-start">
+                                        <div className="pt-2">
+                                            <input
+                                                type="checkbox"
+                                                className="h-4 w-4"
+                                                checked={isSelected}
+                                                onChange={() => toggleStorySelection(story.id)}
+                                            />
+                                        </div>
+                                        <Link to={`/stories/${story.id}`} className="flex gap-4 flex-1">
                                             <div className="w-24 h-24 flex-shrink-0 rounded-md border border-gray-200 overflow-hidden bg-muted">
                                                 {(() => {
                                                     const coverUrl = buildAssetUrl(story.coverImageUrl);
@@ -137,11 +225,11 @@ const StoriesList: React.FC = () => {
                                                 <p className="text-muted-foreground">생성일: {new Date(story.createdAt).toLocaleString()}</p>
                                                 <p className="text-muted-foreground">상태: {story.status}</p>
                                             </div>
-                                        </div>
-                                    </Link>
-                                </CardContent>
-                            </Card>
-                        ))}
+                                        </Link>
+                                    </CardContent>
+                                </Card>
+                            );
+                        })}
                     </div>
                 )}
             </div>
