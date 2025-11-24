@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import useApi from '@/hooks/useApi';
 import { Card, CardContent, CardHeader, CardFooter } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -32,6 +32,9 @@ interface CharacterProfile {
     imageUrl?: string | null; // Renamed from imagePath
     visualDescription?: string | null; // Added
     modelingStatus?: string | null;
+    descriptionPrompt?: string | null;
+    artStyle?: string | null;
+    scope?: string | null;
 }
 
 const ageRanges = ['4-5', '6-7', '8-9'];
@@ -120,9 +123,13 @@ const NewStory: React.FC = () => {
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
     const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
 
-    const [characters, setCharacters] = useState<CharacterProfile[]>([]);
+    const [globalCharacters, setGlobalCharacters] = useState<CharacterProfile[]>([]);
+    const [customCharacters, setCustomCharacters] = useState<CharacterProfile[]>([]);
+    const allCharacters = useMemo(() => [...customCharacters, ...globalCharacters], [customCharacters, globalCharacters]);
     const [selectedCharacterIds, setSelectedCharacterIds] = useState<number[]>([]);
-    const [isLoadingCharacters, setIsLoadingCharacters] = useState<boolean>(false);
+    const [isLoadingGlobalCharacters, setIsLoadingGlobalCharacters] = useState<boolean>(false);
+    const [isLoadingCustomCharacters, setIsLoadingCustomCharacters] = useState<boolean>(false);
+    const isLoadingCharacters = isLoadingGlobalCharacters || isLoadingCustomCharacters;
     const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
     const [moral, setMoral] = useState<string>('');
     const [requiredElementsInput, setRequiredElementsInput] = useState<string>('');
@@ -155,7 +162,7 @@ const NewStory: React.FC = () => {
         requiredElements?: string[];
         artStyle?: string;
     }) => {
-        const selectedCharacterProfiles = characters.filter(char => params.characterIds.includes(char.id));
+        const selectedCharacterProfiles = allCharacters.filter(char => params.characterIds.includes(char.id));
         const characterVisuals = selectedCharacterProfiles.map(char => ({
             id: char.id,
             name: char.name,
@@ -253,32 +260,59 @@ const NewStory: React.FC = () => {
             }
         };
 
-        const fetchCharacters = async () => {
-            setIsLoadingCharacters(true);
+        const normalizeCharacter = (character: any): CharacterProfile => ({
+            id: character.id,
+            slug: character.slug,
+            name: character.name,
+            persona: character.persona ?? null,
+            catchphrase: character.catchphrase ?? null,
+            promptKeywords: character.promptKeywords ?? character.prompt_keywords ?? null,
+            imageUrl: character.imageUrl ?? character.image_url ?? null,
+            visualDescription: character.visualDescription ?? character.visual_description ?? null,
+            modelingStatus: character.modelingStatus ?? character.modeling_status ?? null,
+            descriptionPrompt: character.descriptionPrompt ?? character.description_prompt ?? null,
+            scope: character.scope ?? null,
+            artStyle: character.artStyle ?? character.art_style ?? null,
+        });
+
+        const fetchGlobalCharacters = async () => {
+            setIsLoadingGlobalCharacters(true);
             try {
                 const list = await fetchWithErrorHandler<CharacterProfile[]>('public/characters');
-                const normalized = list.map((character: any) => ({
-                    id: character.id,
-                    slug: character.slug,
-                    name: character.name,
-                    persona: character.persona ?? null,
-                    catchphrase: character.catchphrase ?? null,
-                    promptKeywords: character.promptKeywords ?? character.prompt_keywords ?? null,
-                    imageUrl: character.imageUrl ?? character.image_url ?? null,
-                    visualDescription: character.visualDescription ?? character.visual_description ?? null,
-                    modelingStatus: character.modelingStatus ?? character.modeling_status ?? null,
-                }));
                 if (!cancelled) {
-                    setCharacters(normalized);
+                    setGlobalCharacters(list.map(normalizeCharacter));
                 }
             } catch (err) {
-                console.error('캐릭터 목록 불러오기 실패', err);
+                console.error('추천 캐릭터 목록 불러오기 실패', err);
                 if (!cancelled) {
-                    addToast(`캐릭터 목록을 불러오지 못했어요: ${err instanceof Error ? err.message : String(err)}`, 'error');
+                    addToast(`추천 캐릭터를 불러오지 못했어요: ${err instanceof Error ? err.message : String(err)}`, 'error');
                 }
             } finally {
                 if (!cancelled) {
-                    setIsLoadingCharacters(false);
+                    setIsLoadingGlobalCharacters(false);
+                }
+            }
+        };
+
+        const fetchCustomCharacters = async () => {
+            setIsLoadingCustomCharacters(true);
+            try {
+                const list = await fetchWithErrorHandler<CharacterProfile[]>('characters/me');
+                if (!cancelled) {
+                    setCustomCharacters(list.map(normalizeCharacter));
+                }
+            } catch (err: any) {
+                if (!cancelled) {
+                    if (err?.response?.status === 401 || err?.response?.status === 403) {
+                        setCustomCharacters([]);
+                    } else {
+                        console.error('내 캐릭터 목록 불러오기 실패', err);
+                        addToast('내 캐릭터를 불러오지 못했어요.', 'error');
+                    }
+                }
+            } finally {
+                if (!cancelled) {
+                    setIsLoadingCustomCharacters(false);
                 }
             }
         };
@@ -303,7 +337,8 @@ const NewStory: React.FC = () => {
         };
 
         fetchQuota();
-        fetchCharacters();
+        fetchGlobalCharacters();
+        fetchCustomCharacters();
         fetchWallet();
 
         return () => {
@@ -332,6 +367,68 @@ const NewStory: React.FC = () => {
             return [...prev, characterId];
         });
     };
+
+    useEffect(() => {
+        setSelectedCharacterIds(prev =>
+            prev.filter(id => allCharacters.some(character => character.id === id))
+        );
+    }, [allCharacters]);
+
+    const renderCharacterSection = (title: string, items: CharacterProfile[], emptyMessage: React.ReactNode) => (
+        <div className="space-y-2">
+            <div className="flex items-center justify-between">
+                <span className="block text-sm font-medium text-gray-700">{title}</span>
+                {title === '내 캐릭터' && (
+                    <Link to="/me/characters" className="text-xs text-blue-600 hover:underline">
+                        캐릭터 관리
+                    </Link>
+                )}
+            </div>
+            {items.length === 0 ? (
+                <div className="p-3 border border-dashed rounded-md text-sm text-gray-500">{emptyMessage}</div>
+            ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {items.map(character => {
+                        const isSelected = selectedCharacterIds.includes(character.id);
+                        const imageUrl = buildAssetUrl(character.imageUrl);
+                        return (
+                            <button
+                                type="button"
+                                key={`${title}-${character.id}`}
+                                onClick={() => toggleCharacterSelection(character.id)}
+                                className={`group relative text-left border rounded-lg p-3 transition ${isSelected ? 'border-blue-500 bg-blue-50/80 ring-1 ring-blue-200' : 'border-gray-200 hover:border-blue-400/70'}`}
+                            >
+                                {isSelected && (
+                                    <span className="absolute top-2 right-2 text-xs font-medium text-blue-600">선택됨</span>
+                                )}
+                                <div className="flex gap-3 items-start">
+                                    {imageUrl ? (
+                                        <img
+                                            src={imageUrl}
+                                            alt={`${character.name} 이미지`}
+                                            className="w-20 h-20 rounded-md object-cover border border-gray-200"
+                                            loading="lazy"
+                                        />
+                                    ) : (
+                                        <div className="w-20 h-20 rounded-md bg-gray-100 border border-dashed flex items-center justify-center text-xs text-gray-400">이미지 준비중</div>
+                                    )}
+                                    <div className="flex-1">
+                                        <p className="font-semibold text-gray-900">{character.name}</p>
+                                        {character.persona && (
+                                            <p className="text-sm text-gray-600 mt-1 leading-snug">{character.persona}</p>
+                                        )}
+                                        {character.catchphrase && (
+                                            <p className="text-sm text-blue-600 mt-1 leading-snug">{character.catchphrase}</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -392,7 +489,7 @@ const NewStory: React.FC = () => {
         const randomMinPages = randomInt(10, 20);
         const randomLanguage = pickRandom(languages).value;
 
-        const availableCharacterIds = characters.map(char => char.id);
+        const availableCharacterIds = allCharacters.map(char => char.id);
         const randomCharacterIds = availableCharacterIds.length > 0
             ? pickMultiple(availableCharacterIds, Math.min(2, availableCharacterIds.length))
             : [];
@@ -513,50 +610,24 @@ const NewStory: React.FC = () => {
                                         <Skeleton className="h-32 w-full" />
                                         <Skeleton className="h-32 w-full" />
                                     </div>
-                                ) : characters.length === 0 ? (
-                                    <div className="p-3 border border-dashed rounded-md text-sm text-gray-500">
-                                        준비된 캐릭터가 없습니다. 잠시 후 다시 시도해주세요.
-                                    </div>
                                 ) : (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        {characters.map(character => {
-                                            const isSelected = selectedCharacterIds.includes(character.id);
-                                            const imageUrl = buildAssetUrl(character.imageUrl);
-                                            return (
-                                                <button
-                                                    type="button"
-                                                    key={character.id}
-                                                    onClick={() => toggleCharacterSelection(character.id)}
-                                                    className={`group relative text-left border rounded-lg p-3 transition ${isSelected ? 'border-blue-500 bg-blue-50/80 ring-1 ring-blue-200' : 'border-gray-200 hover:border-blue-400/70'}`}
-                                                >
-                                                    {isSelected && (
-                                                        <span className="absolute top-2 right-2 text-xs font-medium text-blue-600">선택됨</span>
-                                                    )}
-                                                    <div className="flex gap-3 items-start">
-                                                        {imageUrl ? (
-                                                            <img
-                                                                src={imageUrl}
-                                                                alt={`${character.name} 이미지`}
-                                                                className="w-20 h-20 rounded-md object-cover border border-gray-200"
-                                                                loading="lazy"
-                                                            />
-                                                        ) : (
-                                                            <div className="w-20 h-20 rounded-md bg-gray-100 border border-dashed flex items-center justify-center text-xs text-gray-400">이미지 준비중</div>
-                                                        )}
-                                                        <div className="flex-1">
-                                                            <p className="font-semibold text-gray-900">{character.name}</p>
-                                                            {character.persona && (
-                                                                <p className="text-sm text-gray-600 mt-1 leading-snug">{character.persona}</p>
-                                                            )}
-                                                            {character.catchphrase && (
-                                                                <p className="text-sm text-blue-600 mt-1 leading-snug">{character.catchphrase}</p>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    
-                                                </button>
-                                            );
-                                        })}
+                                    <div className="space-y-5">
+                                        {renderCharacterSection(
+                                            '추천 캐릭터',
+                                            globalCharacters,
+                                            '준비된 캐릭터가 없습니다. 잠시 후 다시 시도해주세요.'
+                                        )}
+                                        {renderCharacterSection(
+                                            '내 캐릭터',
+                                            customCharacters,
+                                            <span>
+                                                아직 만든 캐릭터가 없습니다.{' '}
+                                                <Link to="/me/characters" className="text-blue-600 hover:underline">
+                                                    내 캐릭터 페이지
+                                                </Link>
+                                                에서 직접 만들어보세요.
+                                            </span>
+                                        )}
                                     </div>
                                 )}
                             </div>

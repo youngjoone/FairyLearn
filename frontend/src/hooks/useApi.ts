@@ -5,9 +5,6 @@ import { getAccess, setTokens, clearTokens } from '../lib/auth';
 // --- Axios Instance Setup ---
 const axiosInstance = axios.create({
     baseURL: '/api',
-    headers: {
-        'Content-Type': 'application/json',
-    },
     withCredentials: true,
 });
 

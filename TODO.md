@@ -1,3 +1,25 @@
+## 커스텀 캐릭터 → 동화 생성 개선 계획
+
+### 1. 커스텀 캐릭터 생성/관리
+- [x] 사용자별 커스텀 캐릭터 생성 플로우 구축
+    - [x] 프론트: “내 캐릭터 만들기” UI (사진 업로드/텍스트 입력), 상태/프로그레스 표시
+    - [x] 프론트: My Characters 관리 페이지(목록, 상태, 재생성, 삭제 버튼)
+    - [x] 프론트: 캐릭터 CRUD API (`GET/POST/PUT/DELETE /api/characters`) 연동
+    - [x] 백엔드: `Character` 엔티티에 owner/scope 필드 추가, CRUD API 구현, 파일 저장/삭제 처리
+- [x] 레퍼런스 이미지 생성 연동
+    - [x] `/ai/create-character-reference-image` 호출 후 결과를 캐릭터 저장 API와 연계
+    - [x] PENDING → READY 상태 업데이트, 오류 시 재시도/재생성 플로우 제공
+- [x] 권한/보안
+    - [x] 사용자 소유 캐릭터만 조회/수정/삭제 가능하도록 검증
+    - [x] 업로드 이미지 검증, 파일 삭제 시 실제 경로 정리
+
+### 2. 커스텀 캐릭터를 이용한 동화 생성
+- [x] 스토리 생성 UI 개선: “기존 추천 캐릭터” + “나의 캐릭터” 통합 선택, 총 2명까지 허용(커스텀 2, 커스텀+기존 등)
+- [x] 스토리 생성 API(`StoryGenerateRequest`)에서 커스텀 캐릭터 ID 포함 및 소유권 검증
+- [x] Story/creative_concept에 선택된 캐릭터의 `visual_description`/`imageUrl` 저장
+- [x] StorybookService → ai-python 요청 시 `character_visuals`에 커스텀 캐릭터 정보 전달
+- [x] StorybookView 자동 이동/폴링이 커스텀 캐릭터 이미지에서도 정상 작동하는지 검증
+
 # 신규 기능: 소셜 로그인 연동
 
 ## 1. 네이버 로그인

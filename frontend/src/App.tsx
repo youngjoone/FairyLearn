@@ -9,6 +9,7 @@ import AuthCallback from '@/pages/AuthCallback';
 import AdminAnalytics from '@/pages/AdminAnalytics';
 import MyProfile from '@/pages/MyProfile';
 import BillingManagement from '@/pages/BillingManagement';
+import MyCharacters from '@/pages/MyCharacters';
 
 import Signup from '@/pages/Signup';
 import Login from '@/pages/Login';
@@ -42,6 +43,7 @@ function App() {
               
               <Route path="/admin/analytics" element={<AdminAnalytics />} />
               <Route path="/me/profile" element={<MyProfile />} />
+              <Route path="/me/characters" element={<MyCharacters />} />
               <Route path="/me/billing" element={<BillingManagement />} />
               
               <Route path="/signup" element={<Signup />} />

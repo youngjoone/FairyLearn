@@ -113,6 +113,8 @@ const Home: React.FC = () => {
         <br />
         <Link to="/stories/new">새 동화 만들기</Link>
         <br />
+        <Link to="/me/characters">내 캐릭터</Link>
+        <br />
         <Link to="/shared">공유 게시판</Link>
         <br />
                 
