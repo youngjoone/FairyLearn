@@ -4,7 +4,7 @@ import { twMerge } from 'tailwind-merge';
 interface ToastProps {
   id: string;
   message: string;
-  type: 'success' | 'error';
+  type: 'success' | 'error' | 'info' | 'warning';
   onClose: (id: string) => void;
 }
 
@@ -19,7 +19,9 @@ const Toast: React.FC<ToastProps> = ({ id, message, type, onClose }) => {
   const typeStyles = {
     success: 'bg-green-500 text-white',
     error: 'bg-red-500 text-white',
-  };
+    info: 'bg-blue-500 text-white',
+    warning: 'bg-yellow-500 text-black',
+  } as const;
 
   return (
     <div

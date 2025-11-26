@@ -1,48 +1,111 @@
-현재는 프로젝트 뼈대만 남아있음. 새로운 메인 기능은 추가 예정
+# Find-Me 2.0
+
+AI 기반 동화 제작 서비스의 프론트엔드(React), 백엔드(Spring Boot), AI 파이프라인(FastAPI) 레포지터리입니다.  
+사용자는 자신의 사진(또는 원하는 이미지를 기반으로 한) 커스텀 캐릭터를 만들고, 해당 캐릭터를 포함한 동화/표지/페이지/오디오를 자동으로 생성할 수 있습니다.
 
 ---
 
-## 개발 회고: 소셜 로그인 구현 과정에서 얻은 교훈
+## 1. 레포지터리 구조
 
-자세한 프로젝트 구조와 최근 작업 흐름은 `docs/project-overview.md` 문서에 정리되어 있습니다.
+```
+ai-python/       FastAPI 서비스 (Gemini/OpenAI 연동, 이미지·텍스트·오디오 생성)
+backend/         Spring Boot API (사용자/스토리/캐릭터/결제 등 비즈니스 로직)
+frontend/        React + Vite 클라이언트
+docs/            보조 문서
+data/, temp_image 등  로컬 런타임 아티팩트
+```
 
-이 프로젝트의 소셜 로그인 기능을 구현하면서, 특히 두 번째와 세 번째 연동 과정에서 여러 기술적 어려움을 겪었습니다. 이 경험을 통해 얻은 교훈을 다음 개발자가 참고할 수 있도록 기록합니다.
+각 서비스는 독립적으로 실행되며 HTTP로 통신합니다. 개발 중에는 모두 로컬에서 실행 후 `http://localhost:{port}`로 연결합니다.
 
-### 1. 가장 근본적인 원인: 각기 다른 OAuth 응답 구조
+---
 
-초기 구현이 어려웠던 가장 큰 이유는 각 소셜 플랫폼이 제공하는 사용자 정보의 JSON 구조가 모두 달랐기 때문입니다.
+## 2. 주요 기능 개요
 
-*   **구글 (Google - OIDC 표준):**
-    *   **구조:** OpenID Connect(OIDC) 표준을 따르므로, 모든 정보가 최상위 레벨에 **평평하게(flat)** 존재합니다.
-    *   **예시:** `sub`(ID), `email`, `name` 등을 바로 꺼내 쓸 수 있어 파싱이 가장 간단합니다.
+### 커스텀 캐릭터
+- 사용자별 사진(≤5MB)을 업로드 → FastAPI로 참조 이미지를 생성 → `/Users/kyj/testchardir`에 저장.
+- 캐릭터 정보(`persona`, `promptKeywords`, `visualDescription` 등)는 Story/커버 생성에 그대로 전달.
+- 소유자만 CRUD 가능, 이미지 삭제 시 파일/DB 모두 정리.
 
-*   **네이버 (Naver - 일반 OAuth 2.0):**
-    *   **구조:** 모든 사용자 정보가 `response` 라는 **단일 객체 안에 중첩(fully nested)** 되어 있습니다.
-    *   **예시:** 이메일을 얻으려면 `attributes.get("response").get("email")` 과 같이 두 단계를 거쳐야 합니다.
+### 동화 생성 파이프라인
+1. **텍스트**: Spring Boot → FastAPI `/ai/generate` (Gemini) 호출, 최소 10페이지 JSON.
+2. **커버/페이지 이미지**: 선택/생성된 캐릭터의 참조 이미지를 모두 전달하여 장면마다 일관성 유지.  
+   - 429/Resource Exhausted 시 최대 3회 재시도, 백오프는 8/16/24초.
+3. **오디오(TTS)**: 스토리 저장 후 `/ai/generate-audio` 호출. (기본 Gemini TTS, Azure/OpenAI 전환 옵션 준비 중)
 
-*   **카카오 (Kakao - 일반 OAuth 2.0):**
-    *   **구조:** 네이버와 구글의 중간 형태로, **부분적으로 중첩(partially nested)** 되어 있습니다.
-    *   **예시:** `id`는 최상위에 있지만, 이메일은 `kakao_account` 객체 안에, 닉네임은 `properties` 객체 안에 각각 나뉘어 들어있습니다.
+### 리전/Rate Limit 처리
+- 기본 `GOOGLE_LOCATION=us-central1`.
+- `GEMINI_IMAGE_FALLBACK_LOCATIONS` 옵션을 제거하여 중복 리전 호출 대신 단일 리전에 집중.
+- 여전히 429가 발생하면 백오프 후 재시도하되, UI 측에서 사용자에게 진행 상황을 안내하도록 설계.
 
-초기 코드는 네이버의 구조에만 맞춰져 있었기 때문에, 다른 구조를 가진 구글과 카카오 연동 시 `NullPointerException`이 연쇄적으로 발생했습니다.
+---
 
-### 2. 아키텍처의 문제: 역할과 책임(R&R)의 모호함
+## 3. 개발 환경 & 실행
 
-위 문제를 해결하는 과정에서, 여러 클래스가 각자의 방식으로 데이터 파싱을 시도하며 책임이 모호해지는 문제가 발생했습니다. 이는 '두더지 잡기'처럼 한 곳의 버그를 수정하면 다른 곳에서 새로운 버그가 발생하는 악순환을 낳았습니다.
+### 선행 요구 사항
+- Node.js 20+, pnpm 8+
+- JDK 17+, Gradle Wrapper
+- Python 3.12 + `uvicorn`, `google-genai`, `openai` 등 (가상환경 사용 권장)
+- Redis / PostgreSQL (optional, 개발 중에는 H2 + 로컬 Redis)
 
-최종적으로 아래와 같이 각 클래스의 역할을 명확히 분리하는 아키텍처로 문제를 해결했습니다.
+### 환경 변수 핵심
+| 서비스 | 파일 | 주요 항목 |
+| --- | --- | --- |
+| Backend | `backend/src/main/resources/application.yml` (또는 `.env`) | `CHARACTER_IMAGE_DIR`, `USER_PICTURE_DIR`, OAuth 클라이언트 키, JWT 시크릿 |
+| AI | `ai-python/.env` | `GEMINI_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_PROJECT_ID`, `GOOGLE_LOCATION`, `CHARACTER_IMAGE_DIR`, `IMAGE_GENERATION_*` |
+| Frontend | `.env` | `VITE_API_BASE_URL`, `VITE_AI_BASE_URL` 등 API 주소 |
 
-*   **`CustomOAuth2UserService` (데이터 정규화):**
-    *   **역할:** 네이버나 카카오처럼 중첩된 응답을 받으면, 이를 **평평한 구조의 Map으로 '펴주는' 역할**만 책임집니다.
-    *   **결과:** 이 클래스를 거치면, 모든 소셜 로그인의 사용자 정보가 구글(OIDC)과 유사한 단일 레벨의 Map 구조로 통일됩니다.
+### 로컬 실행 순서 예시
+1. **AI 서비스**
+    ```bash
+    cd ai-python
+    source .venv/bin/activate
+    pip install -r requirements.txt
+    uvicorn main:app --reload --port 8000
+    ```
+2. **Spring Boot**
+    ```bash
+    cd backend
+    ./gradlew bootRun --args='--spring.profiles.active=local'
+    ```
+3. **Frontend**
+    ```bash
+    cd frontend
+    pnpm install
+    pnpm dev
+    ```
 
-*   **`OAuthAttributes` (데이터 변환):**
-    *   **역할:** 위에서 정규화된(펴진) Map 데이터를 받아, 우리 시스템의 `User` 엔티티로 **'변환'**하는 역할만 책임집니다.
+---
 
-*   **`OAuth2SuccessHandler` (비즈니스 로직 실행):**
-    *   **역할:** `OAuthAttributes`로부터 `User` 객체를 받아 DB에 저장/업데이트하고, JWT를 발급하는 등 최종 **'비즈니스 로직'**을 실행합니다.
+## 4. 운영 중 주의할 점
 
-### 향후 개발 시 유의할 점 (핵심 교훈)
+1. **이미지 디렉터리**
+   - `CHARACTER_IMAGE_DIR=/Users/kyj/testchardir`
+   - 업로드 임시 디렉터리 `/Users/kyj/testpicturedir`는 실패 시 파일이 남을 수 있음 → 주기적 정리 필요.
 
-1.  **공식 문서 확인부터:** 새로운 외부 API를 연동할 때는, 가장 먼저 공식 문서를 통해 **응답 데이터의 정확한 구조를 확인**하는 습관이 중요합니다.
-2.  **역할 분리 설계 (정규화 → 변환 → 실행):** 외부 데이터를 다룰 때는 **(1) 데이터를 가져와 일관된 형식으로 정규화하고, (2) 우리 시스템 모델로 변환한 뒤, (3) 비즈니스 로직을 실행**하는 단계를 명확히 분리하여 설계하면, 유지보수가 쉽고 안정적인 코드를 작성할 수 있습니다.
+2. **API Rate Limit**
+   - Vertex AI/Gemini 호출은 프로젝트 단위로 제한됨. 동시 사용자 수가 늘면 429가 증가하므로 UI에서 재시도/대기 안내 필요.
+
+3. **보안**
+   - OAuth/JWT 키는 `.env`나 비밀 저장소에서 관리.
+   - FastAPI는 `file://` 경로를 그대로 열어 참조 이미지를 읽으므로, 외부 노출 시 경로 검증/권한 제어 필수.
+   - HTTPS, CORS, Rate Limit, 로그 비식별화 정책 등을 배포 전에 점검.
+
+4. **데이터 정합성**
+   - Story 저장 시 캐릭터가 3명을 넘지 않도록 백엔드에서 자동 제한.
+   - 커버/페이지 생성에 사용된 캐릭터 이미지가 삭제되면 재생성이 필요하므로, 삭제 API 호출 시 안내 메시지 필요.
+
+---
+
+## 5. 향후 개선 가이드
+
+- **UI/UX 재구성**: “내 캐릭터” 페이지, 업로드 진행 표시, 오류 메시지, 새 동화 만들기 플로우를 디자인 가이드에 맞춰 전면 개편.
+- **리소스 정리 배치**: modeling 실패/중단 시 남는 `/Users/kyj/testpicturedir` 파일, 생성된 오디오/이미지의 보존 기간을 정의.
+- **문서화**: README/TODO 이외에 `docs/`에 API 흐름, 환경 설정, 배포 전략 문서를 추가.
+- **보안 강화**: HTTPS 적용, JWT 만료/갱신 전략, 파일 업로드 검사, 사용자 데이터 파기 정책.
+- **확장성**: 429 완화를 위해 큐(예: Redis) 도입, 혹은 OpenAI 이미지 모델과의 하이브리드 운영 검토.
+
+---
+
+## 6. 문의
+
+이 레포지터리는 실험적 기능을 빠르게 검증하는 목적입니다. 구조/문서/CI가 지속적으로 변동될 수 있으니, 변경 사항을 발견하면 README/TODO를 함께 업데이트해 주세요. 💡

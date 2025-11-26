@@ -28,9 +28,11 @@ export default function Login() {
       navigate('/'); // Redirect to home page
     } catch (err: any) {
       if (axios.isAxiosError(err) && err.response) {
-        setError(err.response.data.message || 'Login failed');
+        const apiMessage = (err.response.data && (err.response.data.message || err.response.data.code)) || '';
+        const statusText = err.response.status === 401 ? '이메일/계정 또는 비밀번호를 확인하세요.' : err.response.statusText;
+        setError(apiMessage || statusText || '로그인에 실패했습니다.');
       } else {
-        setError('An error occurred during login');
+        setError('로그인 중 오류가 발생했습니다.');
       }
     }
   };
@@ -43,13 +45,13 @@ export default function Login() {
           {error && <p className="text-red-500 text-xs italic mb-4">{error}</p>}
           <div className="mb-4">
             <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
-              Email
+              이메일 또는 계정
             </label>
             <input
               className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
               id="email"
-              type="email"
-              placeholder="Email"
+              type="text"
+              placeholder="이메일 또는 계정"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required

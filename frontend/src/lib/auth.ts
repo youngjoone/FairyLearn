@@ -1,6 +1,6 @@
 import { getAccessToken, setAccessToken, clearAccessToken } from './tokenStore';
 
-const ACCESS_STORAGE_KEY = 'fairylearn_access';
+const ACCESS_STORAGE_KEY = 'jaramgle_access';
 
 function persistAccessToken(token: string) {
   if (typeof window === 'undefined') return;

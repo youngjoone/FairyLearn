@@ -142,7 +142,7 @@ const MyProfile: React.FC = () => {
                     </Button>
                     <Button
                       type="button"
-                      variant="secondary"
+                      variant="outline"
                       onClick={() => {
                         setIsEditing(false);
                         setNickname(profile.nickname ?? '');

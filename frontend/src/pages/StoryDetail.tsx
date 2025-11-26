@@ -78,9 +78,7 @@ const StoryDetail: React.FC = () => {
     const { isLoggedIn } = useAuth();
     const [story, setStory] = useState<StoryDetailData | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
-    const [isTranslating, setIsTranslating] = useState<boolean>(false);
     const [isCreatingStorybook, setIsCreatingStorybook] = useState<boolean>(false);
-    const [isGeneratingAudio, setIsGeneratingAudio] = useState<boolean>(false); // 오디오 생성 로딩 상태
     const [isSharing, setIsSharing] = useState<boolean>(false);
     const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
     const [targetLanguage, setTargetLanguage] = useState<string>('English');
@@ -346,67 +344,6 @@ const StoryDetail: React.FC = () => {
         } catch (err) {
             console.error('Failed to copy share link', err);
             addToast('클립보드 복사에 실패했어요.', 'error');
-        }
-    };
-
-    const handleGenerateAudio = async () => {
-        if (!story) return;
-        const sharedSlug = story.shareSlug || slug;
-        const storyId = story.id;
-
-        if (!canManage) {
-            if (story.fullAudioUrl) {
-                setIsAudioVisible(true);
-                setTimeout(() => {
-                    audioRef.current?.play().catch(() => {
-                        addToast('브라우저가 자동 재생을 막았어요. 플레이 버튼을 눌러주세요.', 'info');
-                    });
-                }, 0);
-                return;
-            }
-            if (!sharedSlug) {
-                addToast('공유 정보를 확인할 수 없습니다.', 'error');
-                return;
-            }
-            setIsGeneratingAudio(true);
-            try {
-                const audioUrl = await fetchWithErrorHandler<string>(
-                    `/public/shared-stories/${sharedSlug}/audio`,
-                    { method: 'POST' }
-                );
-                setStory(prev => prev ? { ...prev, fullAudioUrl: audioUrl } : prev);
-                setShareLink(`${window.location.origin}/shared/${sharedSlug}`);
-                addToast('AI 음성을 생성했어요!', 'success');
-                setIsAudioVisible(true);
-                setTimeout(() => {
-                    audioRef.current?.play().catch(() => {
-                        addToast('브라우저가 자동 재생을 막았어요. 플레이 버튼을 눌러주세요.', 'info');
-                    });
-                }, 300);
-            } catch (err) {
-                addToast(`오디오 생성 실패: ${err instanceof Error ? err.message : String(err)}`, 'error');
-            } finally {
-                setIsGeneratingAudio(false);
-            }
-            return;
-        }
-
-        if (!storyId) return;
-        setIsGeneratingAudio(true);
-        try {
-            const audioUrl = await fetchWithErrorHandler<string>(`/stories/${storyId}/audio`, { method: 'POST' });
-            setStory(prevStory => prevStory ? { ...prevStory, fullAudioUrl: audioUrl } : null);
-            addToast('오디오 생성에 성공했습니다!', 'success');
-            setIsAudioVisible(true);
-            setTimeout(() => {
-                audioRef.current?.play().catch(() => {
-                    addToast('브라우저가 자동 재생을 막았어요. 플레이 버튼을 눌러주세요.', 'info');
-                });
-            }, 300);
-        } catch (err) {
-            addToast(`오디오 생성 실패: ${err instanceof Error ? err.message : String(err)}`, 'error');
-        } finally {
-            setIsGeneratingAudio(false);
         }
     };
 

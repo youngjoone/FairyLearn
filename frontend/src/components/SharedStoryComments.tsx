@@ -276,7 +276,7 @@ const SharedStoryComments: React.FC<SharedStoryCommentsProps> = ({ slug, onCount
                 </Button>
                 <Button
                   size="sm"
-                  variant="secondary"
+                  variant="outline"
                   onClick={() => {
                     setEditingCommentId(null);
                     setEditText('');
@@ -305,7 +305,7 @@ const SharedStoryComments: React.FC<SharedStoryCommentsProps> = ({ slug, onCount
               </Button>
               <Button
                 size="sm"
-                variant="secondary"
+                variant="outline"
                 onClick={() => {
                   setReplyTargetId(null);
                   setReplyText('');

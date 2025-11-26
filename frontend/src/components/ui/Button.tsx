@@ -5,8 +5,8 @@ import { twMerge } from 'tailwind-merge'; // For merging Tailwind classes
 // Install clsx: npm install clsx (optional, but common with twMerge)
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'solid' | 'outline' | 'ghost' | 'destructive';
-  size?: 'sm' | 'md' | 'lg';
+  variant?: 'solid' | 'outline' | 'ghost' | 'destructive' | 'primary' | 'secondary';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   isLoading?: boolean;
 }
 
@@ -22,12 +22,15 @@ const Button: React.FC<ButtonProps> = ({
 
   const variantStyles = {
     solid: 'bg-primary text-primary-foreground hover:bg-primary/90',
+    primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
+    secondary: 'bg-muted text-foreground hover:bg-muted/80',
     outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
     ghost: 'hover:bg-accent hover:text-accent-foreground',
-    destructive: 'bg-red-500 text-white hover:bg-red-600', // Added destructive variant
-  };
+    destructive: 'bg-red-500 text-white hover:bg-red-600',
+  } as const;
 
   const sizeStyles = {
+    xs: 'h-8 px-2 text-xs',
     sm: 'h-9 px-3',
     md: 'h-10 px-4 py-2',
     lg: 'h-11 px-8',

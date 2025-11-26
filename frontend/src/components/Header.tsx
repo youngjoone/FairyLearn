@@ -17,7 +17,7 @@ const Header: React.FC = () => {
   return (
     <header className="flex items-center justify-between p-4 border-b border-border bg-background text-foreground">
       <Link to="/" className="text-2xl font-bold">
-        FairyLearn
+        Jaramgle
       </Link>
       <nav className="flex items-center space-x-4">
         {isLoggedIn ? (
@@ -25,6 +25,9 @@ const Header: React.FC = () => {
             <Link to="/me/profile" className="hover:text-primary">내 프로필</Link>
             <Link to="/me/characters" className="hover:text-primary">내 캐릭터</Link>
             <Link to="/me/billing" className="hover:text-primary">결제 관리</Link>
+            {profile?.role?.includes('ADMIN') && (
+              <Link to="/admin" className="hover:text-primary">관리자</Link>
+            )}
             <span className="text-sm text-muted-foreground whitespace-nowrap">
               {profile ? `${(profile.nickname || profile.email)}님 환영합니다!` : '로그인 중...'}
             </span>

@@ -135,9 +135,9 @@ const Home: React.FC = () => {
               <div style={{ marginTop: '12px' }}>
                 <p><strong>전체 상태:</strong> {healthStatus.healthy ? '정상' : '이상'}</p>
                 <p><strong>AI 서비스:</strong> {healthStatus.aiServiceStatus}</p>
-                {'aiServiceResponse' in healthStatus && healthStatus.aiServiceResponse && (
+                {Boolean(healthStatus.aiServiceResponse) && (
                   <pre style={{ background: '#f5f5f5', padding: '8px', overflowX: 'auto' }}>
-                    {JSON.stringify(healthStatus.aiServiceResponse, null, 2)}
+                    {JSON.stringify(healthStatus.aiServiceResponse as any, null, 2)}
                   </pre>
                 )}
               </div>

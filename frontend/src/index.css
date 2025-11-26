@@ -1,8 +1,8 @@
+@import './styles/tokens.css'; /* Import design tokens */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import './styles/tokens.css'; /* Import design tokens */
 
 /* Existing content */
 :root {
@@ -55,5 +55,4 @@ button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
-
 

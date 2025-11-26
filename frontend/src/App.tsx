@@ -7,6 +7,7 @@ import StorybookView from '@/pages/StorybookView.tsx';
 import SharedStoriesBoard from '@/pages/SharedStoriesBoard';
 import AuthCallback from '@/pages/AuthCallback';
 import AdminAnalytics from '@/pages/AdminAnalytics';
+import AdminDashboard from '@/pages/AdminDashboard';
 import MyProfile from '@/pages/MyProfile';
 import BillingManagement from '@/pages/BillingManagement';
 import MyCharacters from '@/pages/MyCharacters';
@@ -41,6 +42,7 @@ function App() {
               
               
               
+              <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin/analytics" element={<AdminAnalytics />} />
               <Route path="/me/profile" element={<MyProfile />} />
               <Route path="/me/characters" element={<MyCharacters />} />
